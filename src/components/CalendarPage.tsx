@@ -181,7 +181,7 @@ export function CalendarPage() {
 
   return (
     <>
-      <div className={cx('flex min-h-0 flex-1 flex-col', !isMobile && drawerTask && 'xl:pr-[440px]')}>
+      <div className="flex min-h-0 flex-1 flex-col">
         <TopBar
           title="Work Calendar"
           actions={

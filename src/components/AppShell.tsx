@@ -158,18 +158,18 @@ export function AppShell({ route, navigate, onSignOut, reloadMe, children }: Pro
           <nav
             aria-label="Main"
             className={cx(
-              'relative z-30 flex shrink-0 flex-col bg-ink py-4 transition-[width] duration-200 ease-out',
+              'relative z-30 flex shrink-0 flex-col bg-ink py-4',
               collapsed ? 'w-[72px]' : 'w-[232px]',
             )}
           >
             <div className={cx('mb-5 flex h-11 items-center', collapsed ? 'justify-center px-0' : 'px-4')}>
               <div
                 className={cx(
-                  'flex h-11 items-center justify-center overflow-hidden rounded-2xl bg-white transition-[width] duration-200 ease-out',
+                  'flex h-11 items-center justify-center overflow-hidden rounded-2xl bg-white',
                   collapsed ? 'w-11' : 'w-full px-3',
                 )}
               >
-                {collapsed ? <Logo compact /> : <Logo className="h-6" />}
+                {collapsed ? <Logo compact className="anim-fade" /> : <Logo className="anim-fade h-6" />}
               </div>
             </div>
 
@@ -215,9 +215,7 @@ export function AppShell({ route, navigate, onSignOut, reloadMe, children }: Pro
           </nav>
         ) : null}
 
-        <div key={route} className="anim-page flex min-w-0 flex-1 flex-col">
-          {children}
-        </div>
+        <div className="flex min-w-0 flex-1 flex-col">{children}</div>
       </div>
 
       {exportRange ? (

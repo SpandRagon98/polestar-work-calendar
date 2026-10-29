@@ -10,6 +10,7 @@ import {
 } from 'react'
 import { X } from 'lucide-react'
 import { avatarColor, initials } from '../../lib/status'
+import { motionLevel } from '../../lib/motion'
 
 export function cx(...parts: Array<string | false | null | undefined>): string {
   return parts.filter(Boolean).join(' ')
@@ -48,7 +49,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
       disabled={disabled || loading}
       className={cx(
         'inline-flex shrink-0 items-center font-medium select-none',
-        'transition-[color,background-color,border-color,box-shadow,transform,opacity] duration-150 ease-out',
+        'transition-[color,background-color,border-color,box-shadow,scale,opacity] duration-150 ease-out',
         'active:scale-[0.97] active:duration-75 disabled:cursor-not-allowed disabled:opacity-60 disabled:active:scale-100',
         VARIANTS[variant],
         SIZES[size],
@@ -111,8 +112,7 @@ export function useDismiss(ref: React.RefObject<HTMLElement | null>, open: boole
   }, [ref, open, onClose])
 }
 
-const prefersReducedMotion = () =>
-  typeof window !== 'undefined' && !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+const prefersReducedMotion = () => motionLevel() === 'off'
 
 /**
  * Keep something mounted while it animates out. `closing` is true during the

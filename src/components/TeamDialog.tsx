@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Mail, Trash2, UserPlus } from 'lucide-react'
 import type { Profile, Role } from '../lib/types'
 import { adminDeleteUser, adminUpdateProfile, inviteUser, toApiError, updateMyProfile } from '../lib/api'
@@ -6,7 +6,8 @@ import { appUrl } from '../lib/supabase'
 import { browserZone } from '../lib/time'
 import { useApp } from '../context'
 import { useFeedback } from './ui/feedback'
-import { Avatar, Button, Dialog, cx } from './ui/primitives'
+import { Avatar, Button, Dialog, Segmented, cx } from './ui/primitives'
+import { graphicsRenderer, isSoftwareRendering, readMotionPref, resolveMotion, setMotionPref, type MotionLevel, type MotionPref } from '../lib/motion'
 
 const ROLE_LABEL: Record<Role, string> = { admin: 'Admin', contributor: 'Contributor', requester: 'Requester' }
 const WEEKDAYS = ['M', 'T', 'W', 'T', 'F', 'S', 'S']
@@ -354,7 +355,49 @@ export function ProfileDialog({ open, onClose, onSaved }: { open: boolean; onClo
           </p>
           <p className="mt-0.5">Roles and capacity are managed by an admin.</p>
         </div>
+        <MotionSetting />
       </div>
     </Dialog>
+  )
+}
+
+const MOTION_HINT: Record<MotionLevel, string> = {
+  full: 'All animations.',
+  lite: 'Quick fades only — best when the browser draws without graphics acceleration.',
+  off: 'No animations.',
+}
+
+/** Per-browser animation level; applies immediately. */
+function MotionSetting() {
+  const [pref, setPref] = useState<MotionPref>(readMotionPref)
+  const [level, setLevel] = useState<MotionLevel>(() => resolveMotion(readMotionPref()))
+  const renderer = useMemo(() => graphicsRenderer(), [])
+  const software = isSoftwareRendering(renderer)
+  return (
+    <div>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <span className="label mb-0">Animations</span>
+        <Segmented
+          size="sm"
+          label="Animations"
+          value={pref}
+          onChange={(v) => {
+            setPref(v)
+            setLevel(setMotionPref(v))
+          }}
+          options={[
+            { value: 'auto', label: 'Auto' },
+            { value: 'full', label: 'Full' },
+            { value: 'lite', label: 'Lite' },
+            { value: 'off', label: 'Off' },
+          ]}
+        />
+      </div>
+      <p className="mt-1.5 text-xs leading-relaxed text-stone">
+        {pref === 'auto' ? `Auto chose ${level}: ` : ''}
+        {MOTION_HINT[level]}
+        {software ? ' Your browser is drawing without graphics acceleration — turn it on in the browser’s settings for the smoothest experience.' : ''}
+      </p>
+    </div>
   )
 }

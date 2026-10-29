@@ -111,17 +111,25 @@ function Pages({ onSignOut, reloadMe, requester }: { onSignOut: () => void; relo
 
   return (
     <AppShell route={name} navigate={navigate} onSignOut={onSignOut} reloadMe={reloadMe}>
-      {name === 'calendar' ? (
-        <CalendarPage />
-      ) : name === 'new-ticket' ? (
-        <NewTicketPage />
-      ) : (
-        <TicketsPage
-          key={route.params.toString()}
-          openId={route.params.get('open') ?? undefined}
-          initialTab={route.params.get('tab') ?? undefined}
-        />
-      )}
+      {/* The calendar stays mounted (hidden) while you're on Tickets, so coming back is instant. */}
+      {!requester ? (
+        <div className={name === 'calendar' ? 'anim-page flex min-h-0 flex-1 flex-col' : 'hidden'}>
+          <CalendarPage />
+        </div>
+      ) : null}
+      {name === 'new-ticket' ? (
+        <div key="new-ticket" className="anim-page flex min-h-0 flex-1 flex-col">
+          <NewTicketPage />
+        </div>
+      ) : name === 'tickets' ? (
+        <div key="tickets" className="anim-page flex min-h-0 flex-1 flex-col">
+          <TicketsPage
+            key={route.params.toString()}
+            openId={route.params.get('open') ?? undefined}
+            initialTab={route.params.get('tab') ?? undefined}
+          />
+        </div>
+      ) : null}
     </AppShell>
   )
 }

@@ -33,7 +33,7 @@ const STATUS_GROUP: Record<Exclude<StatusFilter, 'all'>, TicketStatus[]> = {
 }
 
 export function TicketsPage({ openId, initialTab }: { openId?: string; initialTab?: string }) {
-  const { me, people, zone, isMobile } = useApp()
+  const { me, people, zone } = useApp()
   const shell = useShell()
   const { toast } = useFeedback()
   const isRequester = me.role === 'requester'
@@ -164,7 +164,7 @@ export function TicketsPage({ openId, initialTab }: { openId?: string; initialTa
 
   return (
     <>
-      <div className={cx('flex min-h-0 flex-1 flex-col', !isMobile && open && 'xl:pr-[440px]')}>
+      <div className="flex min-h-0 flex-1 flex-col">
         <TopBar
           title="Tickets"
           actions={

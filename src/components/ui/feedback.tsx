@@ -93,7 +93,7 @@ export function FeedbackProvider({ children }: { children: ReactNode }) {
               {t.action ? (
                 <button
                   type="button"
-                  className="mt-2 block rounded-lg bg-white/12 px-2.5 py-1 text-xs font-semibold text-white transition-[background-color,transform] duration-150 hover:bg-white/20 active:scale-[0.97]"
+                  className="mt-2 block rounded-lg bg-white/12 px-2.5 py-1 text-xs font-semibold text-white transition-[background-color,scale] duration-150 hover:bg-white/20 active:scale-[0.97]"
                   onClick={() => {
                     t.action!.onClick()
                     dismiss(t.id)

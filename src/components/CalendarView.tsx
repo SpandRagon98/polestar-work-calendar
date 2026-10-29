@@ -10,6 +10,7 @@ import { canReschedule } from '../lib/permissions'
 import { displayState, STATE_LABEL } from '../lib/status'
 import { formatTimeRange } from '../lib/time'
 import { EventContent } from './EventContent'
+import { motionLevel } from '../lib/motion'
 
 export type CalendarViewName = 'timeGridDay' | 'timeGridWeek'
 
@@ -93,7 +94,8 @@ export const CalendarView = forwardRef<CalendarHandle, Props>(function CalendarV
   const navDir = useRef<'next' | 'prev' | 'fade' | null>(null)
   const lastNav = useRef(0)
   const knownIds = useRef(new Set<string>())
-  const reduced = () => !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+  // Glides and fade-ins move the whole grid: only with full motion.
+  const reduced = () => motionLevel() !== 'full'
 
   const animateNav = () => {
     const dir = navDir.current
