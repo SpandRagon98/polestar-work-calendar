@@ -16,6 +16,7 @@ import { useApp } from '../context'
 import { useNotifications, type Notice } from '../hooks/useNotifications'
 import { ACTIVITY_LABEL } from '../lib/activity'
 import { desktopAlert } from '../lib/desktopAlerts'
+import { setMotionPref, startSmoothnessMonitor } from '../lib/motion'
 import { formatTimeRange } from '../lib/time'
 import { useFeedback } from './ui/feedback'
 import { ExportDialog } from './ExportDialog'
@@ -96,6 +97,18 @@ export function AppShell({ route, navigate, onSignOut, reloadMe, children }: Pro
     [people, zone, toast, navigate],
   )
   const notif = useNotifications(me.user_id, onNotice)
+
+  // Auto animations: if this device keeps dropping frames, settle on Lite (once).
+  useEffect(
+    () =>
+      startSmoothnessMonitor(() =>
+        toast('This device was stuttering, so animations switched to Lite. Change it in Profile → Animations.', 'info', {
+          label: 'Keep full animations',
+          onClick: () => setMotionPref('full'),
+        }),
+      ),
+    [toast],
+  )
   const [collapsed, setCollapsed] = useState(readCollapsed)
   const [exportRange, setExportRange] = useState<{ from: string; to: string } | null>(null)
   const [teamOpen, setTeamOpen] = useState(false)

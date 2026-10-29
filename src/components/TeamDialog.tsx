@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 import { Mail, Trash2, UserPlus } from 'lucide-react'
 import type { Profile, Role } from '../lib/types'
 import { adminDeleteUser, adminUpdateProfile, inviteUser, toApiError, updateMyProfile } from '../lib/api'
@@ -7,7 +7,18 @@ import { browserZone } from '../lib/time'
 import { useApp } from '../context'
 import { useFeedback } from './ui/feedback'
 import { Avatar, Button, Dialog, Segmented, cx } from './ui/primitives'
-import { graphicsRenderer, isSoftwareRendering, readMotionPref, resolveMotion, setMotionPref, type MotionLevel, type MotionPref } from '../lib/motion'
+import {
+  graphicsRenderer,
+  isSoftwareRendering,
+  learnedLite,
+  readMotionPref,
+  resolveMotion,
+  sampleFrames,
+  scriptSpeedMs,
+  setMotionPref,
+  type MotionLevel,
+  type MotionPref,
+} from '../lib/motion'
 
 const ROLE_LABEL: Record<Role, string> = { admin: 'Admin', contributor: 'Contributor', requester: 'Requester' }
 const WEEKDAYS = ['M', 'T', 'W', 'T', 'F', 'S', 'S']
@@ -363,16 +374,67 @@ export function ProfileDialog({ open, onClose, onSaved }: { open: boolean; onClo
 
 const MOTION_HINT: Record<MotionLevel, string> = {
   full: 'All animations.',
-  lite: 'Quick fades only — best when the browser draws without graphics acceleration.',
+  lite: 'Quick fades only — best on machines that stutter (graphics acceleration off, office security settings).',
   off: 'No animations.',
 }
 
-/** Per-browser animation level; applies immediately. */
+interface Check {
+  renderer: string
+  software: boolean
+  fps: number
+  slowPct: number
+  worstMs: number
+  scriptMs: number
+  recommend: MotionLevel
+  notes: string[]
+}
+
+/** Per-browser animation level, plus a self-test for machines that stutter. */
 function MotionSetting() {
+  const { toast } = useFeedback()
   const [pref, setPref] = useState<MotionPref>(readMotionPref)
   const [level, setLevel] = useState<MotionLevel>(() => resolveMotion(readMotionPref()))
-  const renderer = useMemo(() => graphicsRenderer(), [])
-  const software = isSoftwareRendering(renderer)
+  const [checking, setChecking] = useState(false)
+  const [check, setCheck] = useState<Check | null>(null)
+
+  const choose = (v: MotionPref) => {
+    setPref(v)
+    setLevel(setMotionPref(v))
+  }
+
+  async function runCheck() {
+    setChecking(true)
+    setCheck(null)
+    // Let the test bar start moving, then measure frames while it animates.
+    await new Promise((r) => setTimeout(r, 150))
+    const frames = await sampleFrames(1200)
+    const scriptMs = scriptSpeedMs()
+    const renderer = graphicsRenderer()
+    const software = isSoftwareRendering(renderer)
+    const fps = frames?.fps ?? 0
+    const slowPct = Math.round((frames?.slowRatio ?? 1) * 100)
+    const notes: string[] = []
+    if (software) notes.push('The browser is drawing without graphics acceleration. Turn on “Use graphics acceleration when available” in browser settings (it may be disabled by IT).')
+    if (scriptMs > 60) notes.push('Scripts run slowly here — often Edge “Enhanced security” or a security add-in. Ask IT to add this site as an exception, or use Lite.')
+    if (!frames) notes.push('The window was hidden during the test; keep it in front and try again.')
+    if (frames && (fps < 50 || slowPct > 15)) notes.push('This machine drops frames while animating; Lite will feel smoother.')
+    const recommend: MotionLevel = software || scriptMs > 60 || (frames !== null && (fps < 50 || slowPct > 15)) ? 'lite' : 'full'
+    setCheck({ renderer, software, fps, slowPct, worstMs: frames?.worstMs ?? 0, scriptMs, recommend, notes })
+    setChecking(false)
+  }
+
+  const details = check
+    ? [
+        `Polestar Work Calendar — smoothness check`,
+        `Browser: ${navigator.userAgent}`,
+        `Graphics: ${check.renderer}${check.software ? ' (software)' : ''}`,
+        `Frame rate: ${check.fps} fps, slow frames ${check.slowPct}%, worst ${check.worstMs} ms`,
+        `Script speed: ${check.scriptMs} ms`,
+        `CPU cores: ${navigator.hardwareConcurrency ?? '?'}, screen: ${window.screen.width}×${window.screen.height} @${window.devicePixelRatio}x`,
+        `Animations: ${pref} → ${level}; recommended ${check.recommend}`,
+      ].join('\n')
+    : ''
+
   return (
     <div>
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -381,10 +443,7 @@ function MotionSetting() {
           size="sm"
           label="Animations"
           value={pref}
-          onChange={(v) => {
-            setPref(v)
-            setLevel(setMotionPref(v))
-          }}
+          onChange={choose}
           options={[
             { value: 'auto', label: 'Auto' },
             { value: 'full', label: 'Full' },
@@ -394,10 +453,70 @@ function MotionSetting() {
         />
       </div>
       <p className="mt-1.5 text-xs leading-relaxed text-stone">
-        {pref === 'auto' ? `Auto chose ${level}: ` : ''}
+        {pref === 'auto' ? `Auto is using ${level}${learnedLite() ? ' (learned from this device)' : ''}: ` : ''}
         {MOTION_HINT[level]}
-        {software ? ' Your browser is drawing without graphics acceleration — turn it on in the browser’s settings for the smoothest experience.' : ''}
       </p>
+
+      <div className="mt-3 rounded-2xl border border-line bg-white p-3.5">
+        <div className="flex items-center gap-3">
+          <div className="min-w-0 flex-1">
+            <p className="text-xs font-semibold text-ink">Smoothness check</p>
+            <p className="text-[11px] text-stone">Measures this device in about 2 seconds.</p>
+          </div>
+          <Button size="sm" variant="secondary" loading={checking} onClick={() => void runCheck()}>
+            {checking ? 'Checking…' : check ? 'Check again' : 'Run check'}
+          </Button>
+        </div>
+        {checking ? (
+          <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-canvas" aria-hidden>
+            <div className="h-full w-1/3 rounded-full bg-maroon/70" style={{ animation: 'pw-probe 0.9s ease-in-out infinite alternate' }} />
+          </div>
+        ) : null}
+        {check ? (
+          <div className="anim-fade mt-3 space-y-2 text-xs">
+            <dl className="grid grid-cols-[6.5rem_1fr] gap-x-3 gap-y-1">
+              <dt className="text-stone">Frame rate</dt>
+              <dd className={cx('font-medium', check.fps >= 55 && check.slowPct <= 5 ? 'text-st-completed' : 'text-ember')}>
+                {check.fps} fps · {check.slowPct}% slow frames
+              </dd>
+              <dt className="text-stone">Script speed</dt>
+              <dd className={cx('font-medium', check.scriptMs <= 60 ? 'text-st-completed' : 'text-ember')}>
+                {check.scriptMs <= 30 ? 'Fast' : check.scriptMs <= 60 ? 'OK' : 'Slow'} ({check.scriptMs} ms)
+              </dd>
+              <dt className="text-stone">Graphics</dt>
+              <dd className={cx('truncate font-medium', check.software ? 'text-ember' : 'text-ink')} title={check.renderer}>
+                {check.software ? 'No acceleration' : check.renderer.replace(/^ANGLE \(|\)$/g, '')}
+              </dd>
+            </dl>
+            {check.notes.map((n) => (
+              <p key={n} className="rounded-lg bg-canvas px-2.5 py-1.5 leading-relaxed text-ash">
+                {n}
+              </p>
+            ))}
+            <div className="flex flex-wrap items-center gap-2 pt-1">
+              {check.recommend !== level ? (
+                <Button size="sm" variant="primary" onClick={() => choose(check.recommend)}>
+                  Use {check.recommend === 'lite' ? 'Lite' : 'Full'}
+                </Button>
+              ) : (
+                <span className="font-medium text-st-completed">Current setting suits this device.</span>
+              )}
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() =>
+                  void navigator.clipboard?.writeText(details).then(
+                    () => toast('Check details copied.'),
+                    () => toast('Couldn’t copy — select and copy manually.', 'error'),
+                  )
+                }
+              >
+                Copy details
+              </Button>
+            </div>
+          </div>
+        ) : null}
+      </div>
     </div>
   )
 }
