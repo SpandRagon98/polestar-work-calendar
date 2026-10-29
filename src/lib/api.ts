@@ -147,7 +147,9 @@ export async function inviteUser(input: {
   role: Profile['role']
   redirectTo: string
 }): Promise<void> {
-  const { data, error } = await supabase.functions.invoke('invite-user', { body: input })
+  // The Edge Function's URL slug; set VITE_INVITE_FUNCTION if it was deployed under another name.
+  const fn = (import.meta.env.VITE_INVITE_FUNCTION as string | undefined) || 'invite-user'
+  const { data, error } = await supabase.functions.invoke(fn, { body: input })
   if (error) {
     let message = error.message
     try {

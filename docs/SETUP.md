@@ -174,4 +174,4 @@ different contributors — say Spandan (A) and Mandya (B).
 | “Your account isn’t active” | An admin unticked *Active* in Manage team, or the profile row is missing — re-run step 4’s update for that email. |
 | Changes don’t appear live | Check the publication in step 2; a reload always shows current data. |
 | “Only admins can invite people” | Your profile’s role isn’t `admin` (step 4). |
-| Invite fails with a function error | Deploy the `invite-user` function (step 5) or use Option B. |
+| Invite fails with “Failed to send a request to the Edge Function” | The function isn't deployed at `/functions/v1/invite-user`. The dashboard editor gives new functions a random URL name (e.g. `smooth-worker`) and renaming later only changes the label. Either deploy with the CLI command in step 5, or add an Actions variable `VITE_INVITE_FUNCTION` set to the name in the function's URL and re-run the workflow. |
