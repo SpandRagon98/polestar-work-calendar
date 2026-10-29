@@ -164,6 +164,12 @@ export function TaskDrawer({ task, onClose: closeNow, refreshTask, onCreateFollo
   const [ownerDraft, setOwnerDraft] = useState<string[]>([])
   const [pendingOpen, setPendingOpen] = useState(false)
   const [detailsOpen, setDetailsOpen] = useState(false)
+  // Build the lower sections after the panel has slid in, so opening stays light.
+  const [settled, setSettled] = useState(false)
+  useEffect(() => {
+    const id = window.setTimeout(() => setSettled(true), 200)
+    return () => window.clearTimeout(id)
+  }, [])
   const [title, setTitle] = useState(task.title)
   useEffect(() => setTitle(task.title), [task.title])
 
@@ -524,6 +530,15 @@ export function TaskDrawer({ task, onClose: closeNow, refreshTask, onCreateFollo
           </Collapse>
         </section>
 
+        {!settled ? (
+          <div className="space-y-3" aria-hidden>
+            <div className="skeleton h-4 w-28 rounded-md" />
+            <div className="skeleton h-10 rounded-xl" />
+            <div className="skeleton h-4 w-36 rounded-md" />
+            <div className="skeleton h-16 rounded-xl" />
+          </div>
+        ) : (
+          <div className="anim-fade space-y-6">
         {/* Custom fields */}
         <section>
           <h3 className="section-title mb-2">Custom fields</h3>
@@ -577,6 +592,9 @@ export function TaskDrawer({ task, onClose: closeNow, refreshTask, onCreateFollo
           />
         </section>
 
+          </div>
+        )}
+
         <footer className="space-y-1 border-t border-line pt-4 text-[11px] text-stone">
           {task.parent_task_id ? (
             <button type="button" className="flex items-center gap-1 font-medium text-ember hover:underline" onClick={() => onOpenTask(task.parent_task_id!)}>
@@ -604,7 +622,7 @@ export function TaskDrawer({ task, onClose: closeNow, refreshTask, onCreateFollo
         aria-label={`Task: ${task.title}`}
         className={cx(
           'fixed z-40 overflow-y-auto bg-ivory',
-          isMobile ? 'inset-x-0 bottom-0 top-6 rounded-t-3xl' : 'top-0 right-0 bottom-0 w-[440px] border-l border-line',
+          isMobile ? 'inset-x-0 bottom-0 top-6 rounded-t-3xl' : 'top-16 right-0 bottom-0 w-[440px] rounded-tl-2xl border-t border-l border-line',
           closing ? (isMobile ? 'anim-rise-out' : 'anim-slide-out') + ' pointer-events-none' : isMobile ? 'anim-rise' : 'anim-slide',
         )}
         style={{ boxShadow: 'var(--shadow-pop)' }}
