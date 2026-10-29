@@ -218,8 +218,14 @@
 .anim-slide { animation: pw-slide-in 0.22s cubic-bezier(0.2, 0.8, 0.2, 1); }
 .anim-rise { animation: pw-rise 0.24s cubic-bezier(0.2, 0.8, 0.2, 1); }
 .anim-pop { animation: pw-pop 0.16s ease-out; }
+/* Exits: shorter than entrances, ease-in, and they keep their end state. */
+.anim-fade-out { animation: pw-fade-in 0.17s ease-in reverse forwards; }
+.anim-rise-out { animation: pw-rise 0.17s ease-in reverse forwards; }
+.anim-slide-out { animation: pw-slide-in 0.17s ease-in reverse forwards; }
+.anim-slide, .anim-rise, .anim-slide-out, .anim-rise-out { will-change: transform, opacity; }
 @media (prefers-reduced-motion: reduce) {
-  .anim-fade, .anim-slide, .anim-rise, .anim-pop { animation: none; }
+  .anim-fade, .anim-slide, .anim-rise, .anim-pop,
+  .anim-fade-out, .anim-rise-out, .anim-slide-out { animation: none; }
 }
 
 /* Range input styled to match */

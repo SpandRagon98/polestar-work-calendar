@@ -1,7 +1,9 @@
 import {
   forwardRef,
+  useCallback,
   useEffect,
   useRef,
+  useState,
   type ButtonHTMLAttributes,
   type ReactNode,
 } from 'react'
@@ -138,7 +140,34 @@ export function Popover({
 }
 
 /**
+ * Close after a short exit animation (skipped when the user prefers reduced motion).
+ * Returns [closing, close]: render exit classes while `closing` is true.
+ */
+export function useAnimatedClose(onClose: () => void, ms = 170): [boolean, () => void] {
+  const [closing, setClosing] = useState(false)
+  const latest = useRef(onClose)
+  latest.current = onClose
+  const started = useRef(false)
+  const close = useCallback(() => {
+    if (started.current) return
+    if (typeof window === 'undefined' || window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) {
+      latest.current()
+      return
+    }
+    started.current = true
+    setClosing(true)
+    window.setTimeout(() => {
+      started.current = false
+      setClosing(false)
+      latest.current()
+    }, ms)
+  }, [ms])
+  return [closing, close]
+}
+
+/**
  * Modal dialog. Centered on larger screens, a bottom sheet on phones.
+ * `footer` may be a function that receives an animated `close` for Cancel buttons.
  */
 export function Dialog({
   open,
@@ -154,12 +183,13 @@ export function Dialog({
   title: ReactNode
   description?: ReactNode
   children: ReactNode
-  footer?: ReactNode
+  footer?: ReactNode | ((close: () => void) => ReactNode)
   width?: string
 }) {
   const panel = useRef<HTMLDivElement>(null)
-  const closeRef = useRef(onClose)
-  closeRef.current = onClose
+  const [closing, close] = useAnimatedClose(onClose)
+  const closeRef = useRef(close)
+  closeRef.current = close
   useEffect(() => {
     if (!open) return
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && closeRef.current()
@@ -182,14 +212,15 @@ export function Dialog({
   if (!open) return null
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center sm:p-6" role="presentation">
-      <div className="anim-fade absolute inset-0 bg-ink/30" onClick={onClose} />
+      <div className={cx('absolute inset-0 bg-ink/30', closing ? 'anim-fade-out' : 'anim-fade')} onClick={close} />
       <div
         ref={panel}
         role="dialog"
         aria-modal="true"
         aria-label={typeof title === 'string' ? title : undefined}
         className={cx(
-          'anim-rise relative flex max-h-[92dvh] w-full flex-col overflow-hidden rounded-t-3xl bg-ivory sm:rounded-3xl',
+          'relative flex max-h-[92dvh] w-full flex-col overflow-hidden rounded-t-3xl bg-ivory sm:rounded-3xl',
+          closing ? 'anim-rise-out pointer-events-none' : 'anim-rise',
           width,
         )}
         style={{ boxShadow: 'var(--shadow-pop)' }}
@@ -200,14 +231,14 @@ export function Dialog({
             <h2 className="font-display text-lg leading-tight font-bold text-ink">{title}</h2>
             {description ? <p className="mt-1 text-sm leading-relaxed text-ash">{description}</p> : null}
           </div>
-          <Button variant="ghost" size="icon" className="-mt-1 -mr-2" onClick={onClose} aria-label="Close">
+          <Button variant="ghost" size="icon" className="-mt-1 -mr-2" onClick={close} aria-label="Close">
             <X size={18} />
           </Button>
         </div>
         <div className="flex-1 overflow-y-auto overscroll-contain px-6 py-6">{children}</div>
         {footer ? (
           <div className="flex items-center justify-end gap-2 border-t border-line bg-canvas/50 px-6 py-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
-            {footer}
+            {typeof footer === 'function' ? footer(close) : footer}
           </div>
         ) : null}
       </div>

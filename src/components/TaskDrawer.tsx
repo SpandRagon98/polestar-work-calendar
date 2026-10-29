@@ -48,7 +48,7 @@ import { CustomFieldEditor } from './CustomFieldEditor'
 import { OwnerSelector } from './OwnerSelector'
 import { ProgressControl } from './ProgressControl'
 import { useFeedback } from './ui/feedback'
-import { Avatar, Button, Popover, Segmented, cx } from './ui/primitives'
+import { Avatar, Button, Popover, Segmented, cx, useAnimatedClose } from './ui/primitives'
 
 interface Props {
   task: Task
@@ -70,7 +70,8 @@ const STATE_CHIP: Record<string, string> = {
 
 const PAGE = 40
 
-export function TaskDrawer({ task, onClose, refreshTask, onCreateFollowUp, onOpenTask }: Props) {
+export function TaskDrawer({ task, onClose: closeNow, refreshTask, onCreateFollowUp, onOpenTask }: Props) {
+  const [closing, onClose] = useAnimatedClose(closeNow)
   const { me, people, profiles, zone, isMobile } = useApp()
   const { toast, confirm } = useFeedback()
   const now = useNow(30_000)
@@ -223,7 +224,7 @@ export function TaskDrawer({ task, onClose, refreshTask, onCreateFollowUp, onOpe
     try {
       await deleteTask(task.id)
       toast('Task deleted.')
-      onClose()
+      closeNow()
       await refreshTask(task.id)
     } catch (e) {
       toast(toApiError(e).message, 'error')
@@ -595,15 +596,14 @@ export function TaskDrawer({ task, onClose, refreshTask, onCreateFollowUp, onOpe
 
   return (
     <>
-      {isMobile ? <div className="anim-fade fixed inset-0 z-30 bg-ink/30" onClick={onClose} /> : null}
+      {isMobile ? <div className={cx('fixed inset-0 z-30 bg-ink/30', closing ? 'anim-fade-out' : 'anim-fade')} onClick={onClose} /> : null}
       <aside
         role="dialog"
         aria-label={`Task: ${task.title}`}
         className={cx(
           'fixed z-40 overflow-y-auto bg-ivory',
-          isMobile
-            ? 'anim-rise inset-x-0 bottom-0 top-6 rounded-t-3xl'
-            : 'anim-slide top-0 right-0 bottom-0 w-[440px] border-l border-line',
+          isMobile ? 'inset-x-0 bottom-0 top-6 rounded-t-3xl' : 'top-0 right-0 bottom-0 w-[440px] border-l border-line',
+          closing ? (isMobile ? 'anim-rise-out' : 'anim-slide-out') + ' pointer-events-none' : isMobile ? 'anim-rise' : 'anim-slide',
         )}
         style={{ boxShadow: 'var(--shadow-pop)' }}
       >

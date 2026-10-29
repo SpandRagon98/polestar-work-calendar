@@ -1,7 +1,7 @@
 import { useState } from 'react'
-import { Mail, UserPlus } from 'lucide-react'
+import { Mail, Trash2, UserPlus } from 'lucide-react'
 import type { Profile, Role } from '../lib/types'
-import { adminUpdateProfile, inviteUser, toApiError, updateMyProfile } from '../lib/api'
+import { adminDeleteUser, adminUpdateProfile, inviteUser, toApiError, updateMyProfile } from '../lib/api'
 import { appUrl } from '../lib/supabase'
 import { browserZone } from '../lib/time'
 import { useApp } from '../context'
@@ -20,7 +20,8 @@ const ROLE_HINT: Record<Role, string> = {
 /** Admin-only: invite people and manage roles, capacity and working days. */
 export function TeamDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { profiles, me, reloadProfiles } = useApp()
-  const { toast } = useFeedback()
+  const { toast, confirm } = useFeedback()
+  const [deleting, setDeleting] = useState<string | null>(null)
   const [inviting, setInviting] = useState(false)
   const [email, setEmail] = useState('')
   const [name, setName] = useState('')
@@ -49,6 +50,54 @@ export function TeamDialog({ open, onClose }: { open: boolean; onClose: () => vo
       toast(toApiError(e).message, 'error')
     } finally {
       setBusy(false)
+    }
+  }
+
+  async function remove(p: Profile) {
+    setDeleting(p.user_id)
+    try {
+      const impact = await adminDeleteUser(p.user_id, true)
+      const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`
+      const ok = await confirm({
+        title: `Delete ${p.name}?`,
+        confirmLabel: 'Delete permanently',
+        danger: true,
+        message: (
+          <div className="space-y-3">
+            <p>
+              This removes <b className="text-ink">{p.email}</b> and their login. It can’t be undone.
+            </p>
+            <ul className="space-y-1.5 rounded-xl bg-canvas px-3.5 py-3 text-xs leading-relaxed">
+              <li>
+                <b className="text-ink">{plural(impact.sole_tasks, 'task')}</b> where they’re the only owner will be deleted.
+              </li>
+              <li>
+                They’ll be removed from <b className="text-ink">{plural(impact.shared_tasks, 'shared task')}</b>; other owners keep them.
+              </li>
+              <li>
+                <b className="text-ink">{plural(impact.raised_tasks, 'ticket')}</b> they raised stay, without a requester.
+              </li>
+            </ul>
+            <p className="text-xs">
+              To keep their history instead, untick <b className="text-ink">Active</b> — they won’t be able to sign in.
+            </p>
+          </div>
+        ),
+      })
+      if (!ok) return
+      await adminDeleteUser(p.user_id)
+      toast(`${p.name} was deleted.`)
+      await reloadProfiles()
+    } catch (e) {
+      const err = toApiError(e)
+      toast(
+        /admin_delete_user/.test(err.message)
+          ? 'Deleting people needs a one-time database update: run supabase/migrations/20261030000000_admin_delete_user.sql in the Supabase SQL Editor.'
+          : err.message,
+        'error',
+      )
+    } finally {
+      setDeleting(null)
     }
   }
 
@@ -120,19 +169,19 @@ export function TeamDialog({ open, onClose }: { open: boolean; onClose: () => vo
       )}
 
       <div className="overflow-hidden rounded-2xl border border-line">
-        <div className="hidden grid-cols-[minmax(0,1fr)_8.5rem_6.5rem_13.5rem_3.5rem] items-center gap-4 bg-canvas/60 px-4 py-2.5 text-[11px] font-semibold tracking-wide text-stone uppercase md:grid">
+        <div className="hidden grid-cols-[minmax(0,1fr)_8.5rem_6.5rem_13.5rem_5rem] items-center gap-4 bg-canvas/60 px-4 py-2.5 text-[11px] font-semibold tracking-wide text-stone uppercase md:grid">
           <span>Person</span>
           <span>Role</span>
           <span>Capacity</span>
           <span>Working days</span>
-          <span className="text-center">Active</span>
+          <span>Active</span>
         </div>
         <ul className="divide-y divide-line">
           {profiles.map((p) => (
             <li
               key={p.user_id}
               className={cx(
-                'grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-3 px-4 py-3.5 md:grid-cols-[minmax(0,1fr)_8.5rem_6.5rem_13.5rem_3.5rem]',
+                'grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-3 px-4 py-3.5 md:grid-cols-[minmax(0,1fr)_8.5rem_6.5rem_13.5rem_5rem]',
                 !p.active && 'opacity-55',
               )}
             >
@@ -149,7 +198,8 @@ export function TeamDialog({ open, onClose }: { open: boolean; onClose: () => vo
                   </p>
                 </div>
               </div>
-              <label className="flex items-center justify-end gap-2 text-xs text-ash md:order-last md:justify-center">
+              <div className="flex items-center justify-end gap-1 md:order-last md:justify-between">
+              <label className="flex h-9 items-center gap-2 px-1 text-xs text-ash">
                 <span className="md:sr-only">Active</span>
                 <input
                   type="checkbox"
@@ -160,6 +210,22 @@ export function TeamDialog({ open, onClose }: { open: boolean; onClose: () => vo
                   onChange={(e) => void save(p, { active: e.target.checked })}
                 />
               </label>
+              {p.user_id !== me.user_id ? (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-9 w-9 text-stone hover:bg-st-pending/8 hover:text-st-pending"
+                  aria-label={`Delete ${p.name}`}
+                  title="Delete permanently"
+                  loading={deleting === p.user_id}
+                  onClick={() => void remove(p)}
+                >
+                  {deleting !== p.user_id ? <Trash2 size={15} /> : null}
+                </Button>
+              ) : (
+                <span className="h-9 w-9" aria-hidden />
+              )}
+              </div>
               <select
                 className="field h-9 py-0 max-md:col-span-2"
                 aria-label={`Role for ${p.name}`}
@@ -237,9 +303,9 @@ export function ProfileDialog({ open, onClose, onSaved }: { open: boolean; onClo
       onClose={onClose}
       title="Your profile"
       width="max-w-md"
-      footer={
+      footer={(close) => (
         <>
-          <Button onClick={onClose}>Cancel</Button>
+          <Button onClick={close}>Cancel</Button>
           <Button
             variant="primary"
             loading={busy}
@@ -260,7 +326,7 @@ export function ProfileDialog({ open, onClose, onSaved }: { open: boolean; onClo
             Save
           </Button>
         </>
-      }
+      )}
     >
       <div className="space-y-4">
         <div>

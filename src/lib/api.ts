@@ -6,6 +6,7 @@ import {
   normalizeTask,
   toApiError,
   type AssignmentResponse,
+  type DeleteImpact,
   type RequestUpdate,
   type TaskRow,
 } from './apiCore'
@@ -139,6 +140,11 @@ export async function adminUpdateProfile(
   fields: Partial<Pick<Profile, 'role' | 'active' | 'capacity_minutes' | 'work_days' | 'name' | 'timezone'>>,
 ): Promise<void> {
   check(await supabase.rpc('admin_update_profile', { p_user: userId, p: fields }))
+}
+
+/** Permanently delete a person (admins only). With dryRun, only report the impact. */
+export async function adminDeleteUser(userId: string, dryRun = false): Promise<DeleteImpact> {
+  return check(await supabase.rpc('admin_delete_user', { p_user: userId, p_dry_run: dryRun })) as DeleteImpact
 }
 
 export async function inviteUser(input: {

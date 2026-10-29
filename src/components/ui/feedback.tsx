@@ -83,9 +83,9 @@ export function FeedbackProvider({ children }: { children: ReactNode }) {
         onClose={() => close(false)}
         title={pending?.title ?? ''}
         width="max-w-md"
-        footer={
+        footer={(dismiss) => (
           <>
-            <Button onClick={() => close(false)}>Cancel</Button>
+            <Button onClick={dismiss}>Cancel</Button>
             <Button
               variant={pending?.danger ? 'danger' : 'primary'}
               className={cx(pending?.danger && 'bg-st-pending! text-white! border-transparent!')}
@@ -94,7 +94,7 @@ export function FeedbackProvider({ children }: { children: ReactNode }) {
               {pending?.confirmLabel ?? 'Confirm'}
             </Button>
           </>
-        }
+        )}
       >
         <div className="text-sm text-ash">{pending?.message}</div>
       </Dialog>

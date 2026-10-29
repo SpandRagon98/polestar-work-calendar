@@ -50,14 +50,14 @@ function CreateTaskForm({ draft, categories, onClose, onCreated }: { draft: Crea
       onClose={onClose}
       title={draft.parentTask ? 'Create follow-up' : form.isRequest ? 'New ticket' : 'New task'}
       description={draft.parentTask ? `Continues “${draft.parentTask.title}”. The original stays on the calendar.` : undefined}
-      footer={
+      footer={(close) => (
         <>
-          <Button onClick={onClose}>Cancel</Button>
+          <Button onClick={close}>Cancel</Button>
           <Button variant="primary" type="submit" form="create-task" loading={form.busy}>
             {form.isRequest ? 'Send ticket' : 'Create task'}
           </Button>
         </>
-      }
+      )}
     >
       <form id="create-task" onSubmit={submit} className="space-y-5">
         <div>

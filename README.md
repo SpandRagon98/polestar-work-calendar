@@ -30,6 +30,7 @@ GitHub Pages (static app) ──► Supabase Auth · Postgres (RLS + SQL functio
 | **Live updates** | Supabase Realtime: moves, progress, status, owners, approvals and notes appear for other users without refreshing. Stale edits are rejected with a version check and the latest data is shown. |
 | **Excel export** | `.xlsx` generated in the browser with three sheets — Tasks (custom fields as columns), Utilization (per user/day with daily totals), Bookmarks and History. Frozen headers, number/date formats, formula-injection safe. |
 | **Navigation** | Collapsible sidebar (Ctrl/⌘ + B), hash routes `#/calendar`, `#/tickets`, `#/tickets/new` that work on GitHub Pages. |
+| **People** | Admins invite, deactivate or permanently delete people (with an impact preview), and set roles, capacity and working days. |
 | **Accounts** | Email + password, invite-only; scanner-safe invite links (see [docs/EMAIL_TEMPLATES.md](docs/EMAIL_TEMPLATES.md)). Roles: Admin, Contributor, Requester — enforced by Postgres RLS and security-definer functions, not by the UI. |
 
 ## Run it locally

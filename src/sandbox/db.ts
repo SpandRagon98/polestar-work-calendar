@@ -3,7 +3,12 @@
 // Never part of the production build.
 import { PGlite } from '@electric-sql/pglite'
 import { DateTime } from 'luxon'
-import migration from '../../supabase/migrations/20261029000000_init.sql?raw'
+// Every migration, in filename order — the same set Supabase applies.
+const migrations = Object.entries(
+  import.meta.glob<string>('../../supabase/migrations/*.sql', { query: '?raw', import: 'default', eager: true }),
+)
+  .sort(([a], [b]) => a.localeCompare(b))
+  .map(([, sql]) => sql)
 
 const STUB = `
   create role anon nologin;
@@ -37,7 +42,7 @@ export function getDb(): Promise<PGlite> {
 async function init(): Promise<PGlite> {
   const db = new PGlite()
   await db.exec(STUB)
-  await db.exec(migration)
+  for (const sql of migrations) await db.exec(sql)
   for (const u of SANDBOX_USERS) {
     await db.query(`insert into auth.users (id, email, raw_user_meta_data) values ($1, $2, jsonb_build_object('name', $3::text))`, [
       u.id,

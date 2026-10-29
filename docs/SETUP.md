@@ -31,9 +31,14 @@ You will need:
 Pick one:
 
 **A. SQL editor (no tools needed)**
-Open **SQL Editor → New query**, paste the whole of
-[`supabase/migrations/20261029000000_init.sql`](../supabase/migrations/20261029000000_init.sql)
-and press **Run**. It should finish with “Success. No rows returned”.
+Open **SQL Editor → New query**, paste each file in
+[`supabase/migrations/`](../supabase/migrations) **in filename order** and press
+**Run** for each. Each should finish with “Success. No rows returned”:
+
+1. `20261029000000_init.sql` — tables, security, functions
+2. `20261030000000_admin_delete_user.sql` — lets admins delete people
+
+When a new migration file appears in a later update, run just that file.
 
 **B. Supabase CLI (keeps migrations in sync later)**
 
@@ -111,6 +116,11 @@ service-role key, which only exists inside Supabase's function runtime.
 **Option B — from the dashboard.** **Authentication → Users → Invite user** (or
 *Create new user* with *Auto confirm* and share the password privately). New
 people start as **Contributor**; change roles in **Manage team**.
+
+**Removing people.** In **Manage team**, untick *Active* to block sign-in but keep
+their history, or use the trash icon to delete them permanently. Deleting shows
+what will happen first: tasks where they're the only owner are deleted, they're
+removed from shared tasks, and tickets they raised stay without a requester.
 
 Roles:
 

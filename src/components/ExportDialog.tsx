@@ -82,14 +82,14 @@ export function ExportDialog({ open, onClose, visibleStart, visibleEnd }: Props)
       title="Export to Excel"
       description="Tasks, utilization and history as an .xlsx file — generated in your browser."
       width="max-w-md"
-      footer={
+      footer={(close) => (
         <>
-          <Button onClick={onClose}>Cancel</Button>
+          <Button onClick={close}>Cancel</Button>
           <Button variant="primary" loading={busy} disabled={invalid} onClick={() => void run()}>
             <FileSpreadsheet size={16} /> Export to Excel
           </Button>
         </>
-      }
+      )}
     >
       <div className="space-y-5">
         <div>

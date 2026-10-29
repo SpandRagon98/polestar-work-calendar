@@ -7,6 +7,7 @@ import {
   normalizeTask,
   toApiError,
   type AssignmentResponse,
+  type DeleteImpact,
   type RequestUpdate,
   type TaskRow,
 } from '../lib/apiCore'
@@ -156,6 +157,12 @@ export async function updateMyProfile(fields: { name?: string; timezone?: string
 
 export async function adminUpdateProfile(userId: string, fields: Partial<Profile>): Promise<void> {
   await q(`select public.admin_update_profile($1, $2)`, [userId, fields])
+}
+
+export async function adminDeleteUser(userId: string, dryRun = false): Promise<DeleteImpact> {
+  const [{ r }] = await q<{ r: DeleteImpact }>(`select public.admin_delete_user($1, $2) as r`, [userId, dryRun])
+  if (!dryRun) emit('tasks', 'UPDATE', { id: '' })
+  return r
 }
 
 export async function inviteUser(input: { email: string; name: string; role: Profile['role'] }): Promise<void> {

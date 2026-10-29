@@ -326,3 +326,32 @@ describe('row level security', () => {
     expect((await t.db.query(`select 1 from public.task_activities where task_id = $1`, [id])).rows).toHaveLength(0)
   })
 })
+
+describe('deleting people', () => {
+  it('only lets admins delete, never themselves, and previews the impact first', async () => {
+    const leaver = await t.addUser('Leaver')
+    const solo = await newTask(leaver, [leaver])
+    const shared = await newTask(spandan, [spandan, leaver])
+    await rpc(leaver, 'respond_assignment', [shared, 'accept', null, null, null])
+    const request = await newTask(rupam, [mandya, leaver])
+    await rpc(mandya, 'respond_assignment', [request, 'accept', null, null, null])
+    const raised = await newTask(leaver, [mandya])
+
+    await fails(rpc(spandan, 'admin_delete_user', [leaver, false]), '42501')
+    await fails(rpc(admin, 'admin_delete_user', [admin, false]), undefined, /own account/)
+
+    const preview = await rpc<{ sole_tasks: number; shared_tasks: number; raised_tasks: number }>(admin, 'admin_delete_user', [leaver, true])
+    expect(preview).toEqual({ sole_tasks: 1, shared_tasks: 2, raised_tasks: 1 })
+    expect(await task(solo)).toBeDefined() // dry run changed nothing
+
+    await rpc(admin, 'admin_delete_user', [leaver, false])
+    expect(await task(solo)).toBeUndefined()
+    expect(await assignments(shared)).toEqual({ [spandan]: 'accepted' })
+    // The request was only waiting on the person who left, so it is now confirmed.
+    expect(await task(request)).toMatchObject({ approval_state: 'confirmed' })
+    expect(await task(raised)).toMatchObject({ created_by: null, requester_id: null })
+    expect((await t.db.query(`select 1 from auth.users where id = $1`, [leaver])).rows).toHaveLength(0)
+    expect((await t.db.query(`select 1 from public.profiles where user_id = $1`, [leaver])).rows).toHaveLength(0)
+    await fails(rpc(admin, 'admin_delete_user', [leaver, false]), 'PT404')
+  })
+})

@@ -45,6 +45,13 @@ export function normalizeTask(row: TaskRow): Task {
   }
 }
 
+/** What deleting a person would change (also returned after the delete). */
+export interface DeleteImpact {
+  sole_tasks: number
+  shared_tasks: number
+  raised_tasks: number
+}
+
 export type AssignmentResponse = 'accept' | 'decline' | 'suggest'
 
 export type RequestUpdate = Activity & { tasks: { title: string; requester_id: string | null } }
