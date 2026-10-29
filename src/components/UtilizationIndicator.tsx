@@ -4,7 +4,7 @@ import { AlertTriangle, Gauge } from 'lucide-react'
 import type { Profile, Task } from '../lib/types'
 import { computeUtilization, utilizationLevel, type Utilization } from '../lib/utilization'
 import { formatHours } from '../lib/time'
-import { Avatar, cx, useDismiss } from './ui/primitives'
+import { Avatar, cx, useDismiss, usePresence } from './ui/primitives'
 
 const LEVEL_STYLE = {
   idle: 'text-ash',
@@ -40,6 +40,7 @@ export function UtilizationIndicator({ tasks, focus, team, dates, showTeam, comp
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
   useDismiss(ref, open, () => setOpen(false))
+  const panel = usePresence(open)
 
   const u = useMemo(() => computeUtilization(tasks, focus, dates), [tasks, focus, dates])
   const teamRows = useMemo(
@@ -75,9 +76,12 @@ export function UtilizationIndicator({ tasks, focus, team, dates, showTeam, comp
         </span>
         {warn ? <AlertTriangle size={14} className="text-ember" aria-label="Capacity warning" /> : null}
       </button>
-      {open ? (
+      {panel.mounted ? (
         <div
-          className="anim-pop absolute right-0 z-40 mt-2 w-80 max-w-[calc(100vw-2rem)] rounded-2xl border border-line bg-ivory p-4"
+          className={cx(
+            'absolute right-0 z-40 mt-2 w-80 max-w-[calc(100vw-2rem)] origin-top-right rounded-2xl border border-line bg-ivory p-4',
+            panel.closing ? 'anim-pop-out pointer-events-none' : 'anim-pop',
+          )}
           style={{ boxShadow: 'var(--shadow-pop)' }}
         >
           <p className="section-title">Utilization · {focus.name}</p>

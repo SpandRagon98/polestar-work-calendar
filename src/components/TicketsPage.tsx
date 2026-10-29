@@ -175,7 +175,7 @@ export function TicketsPage({ openId, initialTab }: { openId?: string; initialTa
           }
         />
         <div className="min-h-0 flex-1 overflow-y-auto">
-          <div className="mx-auto w-full max-w-6xl px-4 py-6 md:px-8 md:py-8">
+          <div className="@container mx-auto w-full max-w-6xl px-4 py-6 md:px-8 md:py-8">
             <div className="mb-6">
               <h2 className="font-display text-2xl font-bold text-ink">{isRequester ? 'Your tickets' : 'Tickets'}</h2>
               <p className="mt-1 max-w-2xl text-sm leading-relaxed text-ash">
@@ -185,15 +185,15 @@ export function TicketsPage({ openId, initialTab }: { openId?: string; initialTa
               </p>
             </div>
 
-            <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-center">
+            <div className="mb-4 flex flex-col gap-3 @3xl:flex-row @3xl:items-center">
               {tabs.length > 1 ? (
-                <div className="-mx-1 overflow-x-auto px-1 pb-1 lg:pb-0">
+                <div className="-mx-1 overflow-x-auto px-1 pb-1 @3xl:pb-0">
                   <Segmented label="Ticket list" value={tab} onChange={setTab} options={tabs} />
                 </div>
               ) : null}
-              <span className="hidden flex-1 lg:block" />
+              <span className="hidden flex-1 @3xl:block" />
               <div className="flex gap-2">
-                <div className="relative min-w-0 flex-1 lg:w-64 lg:flex-none">
+                <div className="relative min-w-0 flex-1 @3xl:w-64 @3xl:flex-none">
                   <Search size={15} className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-stone" />
                   <input
                     className="field h-10 pl-9"

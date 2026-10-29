@@ -86,12 +86,42 @@ export const CalendarView = forwardRef<CalendarHandle, Props>(function CalendarV
   const latest = useRef(props)
   latest.current = props
 
+  // ── Motion ──────────────────────────────────────────────────────────────
+  // Navigation glides in the direction of travel; events added while you're
+  // looking (yours or a teammate's, via Realtime) fade into place. Both use the
+  // Web Animations API with transform/opacity only, so they run on the compositor.
+  const navDir = useRef<'next' | 'prev' | 'fade' | null>(null)
+  const lastNav = useRef(0)
+  const knownIds = useRef(new Set<string>())
+  const reduced = () => !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+
+  const animateNav = () => {
+    const dir = navDir.current
+    navDir.current = null
+    lastNav.current = performance.now()
+    const view = box.current?.querySelector<HTMLElement>('.fc-view-harness')
+    if (!dir || !view || reduced() || !view.animate) return
+    const x = dir === 'next' ? 16 : dir === 'prev' ? -16 : 0
+    view.animate(
+      [
+        { opacity: 0.4, transform: `translateX(${x}px)` },
+        { opacity: 1, transform: 'translateX(0)' },
+      ],
+      { duration: 240, easing: 'cubic-bezier(0.2, 0.8, 0.2, 1)' },
+    )
+  }
+
+  const go = (dir: 'next' | 'prev' | 'fade', fn: () => void) => {
+    navDir.current = dir
+    fn()
+  }
+
   useImperativeHandle(ref, () => ({
-    prev: () => fc.current?.getApi().prev(),
-    next: () => fc.current?.getApi().next(),
-    today: () => fc.current?.getApi().today(),
-    gotoDate: (d) => fc.current?.getApi().gotoDate(d),
-    changeView: (v) => fc.current?.getApi().changeView(v),
+    prev: () => go('prev', () => fc.current?.getApi().prev()),
+    next: () => go('next', () => fc.current?.getApi().next()),
+    today: () => go('fade', () => fc.current?.getApi().today()),
+    gotoDate: (d) => go('fade', () => fc.current?.getApi().gotoDate(d)),
+    changeView: (v) => go('fade', () => fc.current?.getApi().changeView(v)),
   }))
 
   const events = useMemo<EventInput[]>(
@@ -142,14 +172,15 @@ export const CalendarView = forwardRef<CalendarHandle, Props>(function CalendarV
       slotEventOverlap={false}
       events={events}
       now={now}
-      datesSet={(arg) =>
+      datesSet={(arg) => {
+        animateNav()
         latest.current.onRangeChange({
           start: arg.start,
           end: arg.end,
           title: arg.view.title,
           view: arg.view.type as CalendarViewName,
         })
-      }
+      }}
       select={(arg: DateSelectArg) => {
         let end = arg.end
         // A single click selects one 30-minute slot; default new tasks to an hour.
@@ -167,6 +198,18 @@ export const CalendarView = forwardRef<CalendarHandle, Props>(function CalendarV
         const task = arg.event.extendedProps.task as Task | undefined
         if (!task) return
         const el = arg.el
+        // A task that just appeared (not on a page change or first load) fades in.
+        const isNew = knownIds.current.size > 0 && !knownIds.current.has(task.id)
+        knownIds.current.add(task.id)
+        if (isNew && performance.now() - lastNav.current > 700 && !reduced() && el.animate) {
+          el.animate(
+            [
+              { opacity: 0, transform: 'scale(0.96)' },
+              { opacity: 1, transform: 'scale(1)' },
+            ],
+            { duration: 260, easing: 'cubic-bezier(0.2, 0.8, 0.2, 1)' },
+          )
+        }
         el.tabIndex = 0
         el.setAttribute('role', 'button')
         el.setAttribute(

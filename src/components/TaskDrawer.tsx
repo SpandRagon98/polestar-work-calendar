@@ -48,7 +48,7 @@ import { CustomFieldEditor } from './CustomFieldEditor'
 import { OwnerSelector } from './OwnerSelector'
 import { ProgressControl } from './ProgressControl'
 import { useFeedback } from './ui/feedback'
-import { Avatar, Button, Popover, Segmented, cx, useAnimatedClose } from './ui/primitives'
+import { Avatar, Button, Collapse, Popover, Segmented, cx, useAnimatedClose } from './ui/primitives'
 
 interface Props {
   task: Task
@@ -512,14 +512,16 @@ export function TaskDrawer({ task, onClose: closeNow, refreshTask, onCreateFollo
             onClick={() => setDetailsOpen((o) => !o)}
           >
             <h3 className="section-title">Details</h3>
-            <ChevronDown size={16} className={cx('text-stone transition-transform', detailsOpen && 'rotate-180')} />
+            <ChevronDown size={16} className={cx('text-stone transition-transform duration-200', detailsOpen && 'rotate-180')} />
           </button>
-          {!detailsOpen && task.description ? (
-            <p className="mt-2 line-clamp-3 text-sm whitespace-pre-wrap text-ash">{task.description}</p>
+          {task.description ? (
+            <Collapse open={!detailsOpen}>
+              <p className="mt-2 line-clamp-3 text-sm whitespace-pre-wrap text-ash">{task.description}</p>
+            </Collapse>
           ) : null}
-          {detailsOpen ? (
+          <Collapse open={detailsOpen}>
             <DetailsEditor task={task} editable={editable} onSave={(p) => void patch(p)} />
-          ) : null}
+          </Collapse>
         </section>
 
         {/* Custom fields */}
@@ -777,7 +779,7 @@ function DetailsEditor({ task, editable, onSave }: { task: Task; editable: boole
     [],
   )
   return (
-    <div className="anim-pop mt-3 space-y-3">
+    <div className="mt-3 space-y-3 pb-1">
       <div className="flex flex-wrap items-center gap-3">
         <span className="label mb-0">Priority</span>
         {editable ? (

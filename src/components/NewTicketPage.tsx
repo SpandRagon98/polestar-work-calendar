@@ -9,7 +9,7 @@ import { CustomFieldEditor } from './CustomFieldEditor'
 import { OwnerSelector } from './OwnerSelector'
 import { FormError, OwnerNotes, PriorityField, TimeFields } from './TaskFormParts'
 import { useFeedback } from './ui/feedback'
-import { Avatar, Button, cx } from './ui/primitives'
+import { Avatar, Button, Collapse, cx } from './ui/primitives'
 
 /** Next working day at 10:00 in the user's zone, one hour long. */
 function defaultSlot(zone: string): CreateDraft {
@@ -129,8 +129,7 @@ function NewTicketForm({ draft }: { draft: CreateDraft }) {
                   <SlidersHorizontal size={14} /> Priority, project & custom fields
                   <ChevronDown size={14} className={cx('transition-transform duration-200', details && 'rotate-180')} />
                 </button>
-                {details ? (
-                  <div className="anim-pop mt-4 space-y-5">
+                <Collapse open={details} className="space-y-5 pt-4 pb-1">
                     <div className="flex flex-wrap items-center justify-between gap-3">
                       <span className="label mb-0">Priority</span>
                       <PriorityField form={form} />
@@ -152,8 +151,7 @@ function NewTicketForm({ draft }: { draft: CreateDraft }) {
                       <span className="label">Custom fields</span>
                       <CustomFieldEditor fields={form.fields} onChange={form.setFields} people={profiles} />
                     </div>
-                  </div>
-                ) : null}
+                </Collapse>
               </div>
 
               <FormError message={form.error} />

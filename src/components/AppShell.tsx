@@ -13,7 +13,11 @@ import {
 import type { Task } from '../lib/types'
 import type { RouteName } from '../lib/router'
 import { useApp } from '../context'
-import { useNotifications } from '../hooks/useNotifications'
+import { useNotifications, type Notice } from '../hooks/useNotifications'
+import { ACTIVITY_LABEL } from '../lib/activity'
+import { desktopAlert } from '../lib/desktopAlerts'
+import { formatTimeRange } from '../lib/time'
+import { useFeedback } from './ui/feedback'
 import { ExportDialog } from './ExportDialog'
 import { NotificationsPopover } from './NotificationsPopover'
 import { ProfileDialog, TeamDialog } from './TeamDialog'
@@ -56,8 +60,42 @@ interface Props {
 }
 
 export function AppShell({ route, navigate, onSignOut, reloadMe, children }: Props) {
-  const { me, isMobile } = useApp()
-  const notif = useNotifications(me.user_id)
+  const { me, isMobile, people, zone } = useApp()
+  const { toast } = useFeedback()
+
+  // New tickets for me, and responses to tickets I raised, arrive live.
+  const onNotice = useCallback(
+    (n: Notice) => {
+      if (n.kind === 'ticket') {
+        const t = n.task
+        const from = people.get(t.requester_id ?? t.created_by ?? '')?.name ?? 'A teammate'
+        const open = () => navigate('tickets', { open: t.id })
+        toast(`New ticket from ${from}: “${t.title}”. It goes on your calendar once you accept.`, 'notify', {
+          label: 'Review',
+          onClick: open,
+        })
+        desktopAlert(`New ticket from ${from}`, `${t.title} · ${formatTimeRange(t.start_at, t.end_at, zone)}`, t.id, open)
+      } else {
+        const u = n.update
+        const who = people.get(u.actor_id ?? '')?.name ?? 'Someone'
+        const what = ACTIVITY_LABEL[u.activity_type] ?? 'Updated'
+        const title = `“${u.tasks.title}”`
+        const line =
+          {
+            assignment_accepted: `${who} accepted ${title}.`,
+            assignment_declined: `${who} declined ${title}.`,
+            time_suggested: `${who} suggested a new time for ${title}.`,
+            request_confirmed: `${title} is confirmed — everyone accepted.`,
+            request_needs_revision: `${title} needs revision.`,
+          }[u.activity_type] ?? `${what}: ${title}`
+        const open = () => navigate('tickets', { open: u.task_id, tab: 'raised' })
+        toast(line, 'notify', { label: 'View', onClick: open })
+        desktopAlert(what, line, u.id, open)
+      }
+    },
+    [people, zone, toast, navigate],
+  )
+  const notif = useNotifications(me.user_id, onNotice)
   const [collapsed, setCollapsed] = useState(readCollapsed)
   const [exportRange, setExportRange] = useState<{ from: string; to: string } | null>(null)
   const [teamOpen, setTeamOpen] = useState(false)
@@ -177,7 +215,9 @@ export function AppShell({ route, navigate, onSignOut, reloadMe, children }: Pro
           </nav>
         ) : null}
 
-        <div className="flex min-w-0 flex-1 flex-col">{children}</div>
+        <div key={route} className="anim-page flex min-w-0 flex-1 flex-col">
+          {children}
+        </div>
       </div>
 
       {exportRange ? (

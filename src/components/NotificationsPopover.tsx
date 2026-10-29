@@ -1,12 +1,13 @@
 import { useRef, useState } from 'react'
-import { Bell, CheckCheck, Hourglass, Send } from 'lucide-react'
+import { Bell, BellRing, CheckCheck, Hourglass, Send } from 'lucide-react'
 import type { Task } from '../lib/types'
 import type { RequestUpdate } from '../lib/api'
 import { ACTIVITY_LABEL } from '../lib/activity'
+import { desktopAlertState, disableDesktopAlerts, enableDesktopAlerts, type DesktopAlertState } from '../lib/desktopAlerts'
 import { APPROVAL_STATE_LABEL } from '../lib/status'
 import { formatRelative, formatTimeRange } from '../lib/time'
 import { useApp } from '../context'
-import { Avatar, Button, EmptyState, cx, useDismiss } from './ui/primitives'
+import { Avatar, Button, EmptyState, cx, useDismiss, usePresence } from './ui/primitives'
 
 interface Props {
   pending: Task[]
@@ -31,6 +32,7 @@ export function NotificationsPopover({ pending, requests, updates, badge, seenAt
     onMarkSeen()
   })
   const seenMs = seenAt ? new Date(seenAt).getTime() : 0
+  const panel = usePresence(open)
 
   const toggle = () => {
     if (!open) {
@@ -46,9 +48,12 @@ export function NotificationsPopover({ pending, requests, updates, badge, seenAt
         <Bell size={17} />
         {badge ? <Badge n={badge} /> : null}
       </Button>
-      {open ? (
+      {panel.mounted ? (
         <div
-          className="anim-pop absolute right-0 z-50 mt-2 w-[380px] max-w-[calc(100vw-1.5rem)] rounded-2xl border border-line bg-ivory"
+          className={cx(
+            'absolute right-0 z-50 mt-2 w-[380px] max-w-[calc(100vw-1.5rem)] origin-top-right rounded-2xl border border-line bg-ivory',
+            panel.closing ? 'anim-pop-out pointer-events-none' : 'anim-pop',
+          )}
           style={{ boxShadow: 'var(--shadow-pop)' }}
         >
           <div className="flex gap-1 border-b border-line p-2">
@@ -167,7 +172,31 @@ export function NotificationsPopover({ pending, requests, updates, badge, seenAt
               </>
             )}
           </div>
+          <DesktopAlertsRow />
         </div>
+      ) : null}
+    </div>
+  )
+}
+
+/** Opt in to OS notifications for new tickets while the app is in a background tab. */
+function DesktopAlertsRow() {
+  const [state, setState] = useState<DesktopAlertState>(desktopAlertState)
+  if (state === 'unsupported') return null
+  return (
+    <div className="flex items-center gap-2.5 border-t border-line px-4 py-3 text-xs">
+      <BellRing size={14} className="shrink-0 text-ash" />
+      <span className="flex-1 text-ash">
+        {state === 'blocked' ? 'Desktop alerts are blocked in your browser settings.' : 'Desktop alerts for new tickets'}
+      </span>
+      {state === 'on' ? (
+        <Button size="sm" variant="ghost" onClick={() => setState(disableDesktopAlerts())}>
+          Turn off
+        </Button>
+      ) : state === 'off' ? (
+        <Button size="sm" variant="soft" onClick={() => void enableDesktopAlerts().then(setState)}>
+          Turn on
+        </Button>
       ) : null}
     </div>
   )

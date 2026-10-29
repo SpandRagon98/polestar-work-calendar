@@ -47,7 +47,9 @@ async function tasks(where: string, params: unknown[], tail = 'order by t.start_
 /** Mimic Realtime: tell subscribers about a changed task and its new history rows. */
 async function changed(taskId: string, since: string, deleted = false) {
   if (deleted) return emit('tasks', 'DELETE', { id: taskId })
-  emit('tasks', 'UPDATE', { id: taskId })
+  const db = await getDb()
+  const [row] = (await db.query<{ requester_id: string | null }>(`select requester_id from public.tasks where id = $1`, [taskId])).rows
+  emit('tasks', 'UPDATE', { id: taskId, requester_id: row?.requester_id ?? null })
   const rows = await q<{ row: Activity }>(
     `select to_jsonb(a) as row from public.task_activities a where task_id = $1 and created_at >= $2 order by created_at`,
     [taskId, since],

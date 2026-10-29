@@ -1,7 +1,7 @@
 import { useMemo, useRef, useState } from 'react'
 import { Check, ChevronDown, Search, Users } from 'lucide-react'
 import type { Profile } from '../lib/types'
-import { Avatar, Button, cx, useDismiss } from './ui/primitives'
+import { Avatar, Button, cx, useDismiss, usePresence } from './ui/primitives'
 
 interface Props {
   value: string[]
@@ -30,6 +30,7 @@ export function OwnerSelector({
   const [q, setQ] = useState('')
   const ref = useRef<HTMLDivElement>(null)
   useDismiss(ref, open, () => setOpen(false))
+  const panel = usePresence(open)
 
   const active = useMemo(
     () =>
@@ -88,10 +89,11 @@ export function OwnerSelector({
           <ChevronDown size={14} />
         </Button>
       )}
-      {open ? (
+      {panel.mounted ? (
         <div
           className={cx(
-            'anim-pop mt-2 rounded-2xl border border-line bg-ivory p-2',
+            'mt-2 origin-top rounded-2xl border border-line bg-ivory p-2',
+            panel.closing ? 'anim-pop-out pointer-events-none' : 'anim-pop',
             // In forms the list flows inline so scrolling dialogs never clip it.
             variant === 'field' ? 'w-full' : 'absolute z-40 w-72 max-w-[calc(100vw-2rem)]',
           )}

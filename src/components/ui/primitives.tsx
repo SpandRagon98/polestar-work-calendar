@@ -2,6 +2,7 @@ import {
   forwardRef,
   useCallback,
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
   type ButtonHTMLAttributes,
@@ -46,7 +47,9 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
       type={type}
       disabled={disabled || loading}
       className={cx(
-        'inline-flex shrink-0 items-center font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-60',
+        'inline-flex shrink-0 items-center font-medium select-none',
+        'transition-[color,background-color,border-color,box-shadow,transform,opacity] duration-150 ease-out',
+        'active:scale-[0.97] active:duration-75 disabled:cursor-not-allowed disabled:opacity-60 disabled:active:scale-100',
         VARIANTS[variant],
         SIZES[size],
         className,
@@ -108,6 +111,37 @@ export function useDismiss(ref: React.RefObject<HTMLElement | null>, open: boole
   }, [ref, open, onClose])
 }
 
+const prefersReducedMotion = () =>
+  typeof window !== 'undefined' && !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+
+/**
+ * Keep something mounted while it animates out. `closing` is true during the
+ * exit; `mounted` turns false once it has finished.
+ */
+export function usePresence(open: boolean, ms = 150): { mounted: boolean; closing: boolean } {
+  const [mounted, setMounted] = useState(open)
+  const [closing, setClosing] = useState(false)
+  useEffect(() => {
+    if (open) {
+      setMounted(true)
+      setClosing(false)
+      return
+    }
+    if (!mounted) return
+    if (prefersReducedMotion()) {
+      setMounted(false)
+      return
+    }
+    setClosing(true)
+    const id = window.setTimeout(() => {
+      setMounted(false)
+      setClosing(false)
+    }, ms)
+    return () => window.clearTimeout(id)
+  }, [open, ms])
+  return { mounted: open || mounted, closing: !open && closing }
+}
+
 export function Popover({
   open,
   onClose,
@@ -123,13 +157,15 @@ export function Popover({
 }) {
   const ref = useRef<HTMLDivElement>(null)
   useDismiss(ref, open, onClose)
-  if (!open) return null
+  const { mounted, closing } = usePresence(open)
+  if (!mounted) return null
   return (
     <div
       ref={ref}
       className={cx(
-        'anim-pop absolute top-full z-40 mt-2 rounded-2xl border border-line bg-ivory',
-        align === 'right' ? 'right-0' : 'left-0',
+        'absolute top-full z-40 mt-2 rounded-2xl border border-line bg-ivory',
+        align === 'right' ? 'right-0 origin-top-right' : 'left-0 origin-top-left',
+        closing ? 'anim-pop-out pointer-events-none' : 'anim-pop',
         className,
       )}
       style={{ boxShadow: 'var(--shadow-pop)' }}
@@ -150,7 +186,7 @@ export function useAnimatedClose(onClose: () => void, ms = 170): [boolean, () =>
   const started = useRef(false)
   const close = useCallback(() => {
     if (started.current) return
-    if (typeof window === 'undefined' || window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) {
+    if (prefersReducedMotion()) {
       latest.current()
       return
     }
@@ -259,8 +295,46 @@ export function Segmented<T extends string>({
   label: string
   size?: 'sm' | 'md'
 }) {
+  const box = useRef<HTMLDivElement>(null)
+  const [pill, setPill] = useState<{ x: number; w: number } | null>(null)
+  const [animate, setAnimate] = useState(false)
+  const optionKey = options.map((o) => o.value).join('|')
+
+  // Measure the selected option; the pill glides there with transform only.
+  useLayoutEffect(() => {
+    const el = box.current?.querySelector<HTMLElement>('[aria-checked="true"]')
+    if (!el) return setPill(null)
+    setPill({ x: el.offsetLeft, w: el.offsetWidth })
+  }, [value, optionKey])
+
+  useEffect(() => {
+    const el = box.current
+    if (!el || typeof ResizeObserver === 'undefined') return
+    const ro = new ResizeObserver(() => {
+      const sel = el.querySelector<HTMLElement>('[aria-checked="true"]')
+      if (sel) setPill({ x: sel.offsetLeft, w: sel.offsetWidth })
+    })
+    ro.observe(el)
+    // Enable the glide only after the first placement, so it doesn't slide in on load.
+    const id = window.setTimeout(() => setAnimate(true), 60)
+    return () => {
+      ro.disconnect()
+      window.clearTimeout(id)
+    }
+  }, [])
+
   return (
-    <div role="radiogroup" aria-label={label} className="inline-flex rounded-xl border border-line bg-canvas p-0.5">
+    <div ref={box} role="radiogroup" aria-label={label} className="relative inline-flex rounded-xl border border-line bg-canvas p-0.5">
+      {pill ? (
+        <span
+          aria-hidden
+          className={cx(
+            'absolute top-0.5 bottom-0.5 left-0 rounded-[10px] bg-white shadow-sm',
+            animate && 'transition-[transform,width] duration-200 ease-[cubic-bezier(0.2,0.8,0.2,1)]',
+          )}
+          style={{ width: pill.w, transform: `translateX(${pill.x}px)` }}
+        />
+      ) : null}
       {options.map((o) => (
         <button
           key={o.value}
@@ -270,14 +344,40 @@ export function Segmented<T extends string>({
           title={o.title}
           onClick={() => onChange(o.value)}
           className={cx(
-            'rounded-[10px] font-medium transition-all',
+            'relative z-10 rounded-[10px] font-medium whitespace-nowrap transition-colors duration-150 select-none',
             size === 'sm' ? 'px-2.5 py-1 text-xs' : 'px-3 py-1.5 text-sm',
-            value === o.value ? 'bg-white text-ink shadow-sm' : 'text-ash hover:text-ink',
+            value === o.value ? 'text-ink' : 'text-ash hover:text-ink',
           )}
         >
           {o.label}
         </button>
       ))}
+    </div>
+  )
+}
+
+/**
+ * Smoothly expand / collapse a section. Content stays mounted (so typed values
+ * survive) and is made inert while closed.
+ */
+export function Collapse({ open, children, className }: { open: boolean; children: ReactNode; className?: string }) {
+  const inner = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (!inner.current) return
+    if (open) inner.current.removeAttribute('inert')
+    else inner.current.setAttribute('inert', '')
+  }, [open])
+  return (
+    <div
+      className={cx(
+        'grid transition-[grid-template-rows,opacity] duration-200 ease-[cubic-bezier(0.2,0.8,0.2,1)] motion-reduce:transition-none',
+        open ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0',
+      )}
+      aria-hidden={!open}
+    >
+      <div ref={inner} className="-mx-1 min-h-0 overflow-hidden px-1">
+        <div className={className}>{children}</div>
+      </div>
     </div>
   )
 }

@@ -46,6 +46,11 @@
     font-family: var(--font-sans);
     font-feature-settings: 'cv11', 'ss01';
   }
+  button,
+  a,
+  [role='button'] {
+    -webkit-tap-highlight-color: transparent;
+  }
   :focus-visible {
     outline: 2px solid var(--color-ember);
     outline-offset: 2px;
@@ -154,10 +159,32 @@
   background: transparent;
   overflow: hidden;
   cursor: pointer;
-  transition: box-shadow 0.15s ease, transform 0.15s ease;
+  transition: box-shadow 0.18s ease, transform 0.18s cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 .fc .fc-event.pw-event:hover {
-  box-shadow: 0 4px 14px rgb(37 11 11 / 0.12);
+  box-shadow: 0 6px 18px rgb(37 11 11 / 0.14);
+  transform: translateY(-1px);
+}
+.fc .fc-event.pw-event:active {
+  transform: scale(0.985);
+  transition-duration: 0.08s;
+}
+/* Dragging / resizing: the moving copy lifts off the grid. */
+.fc .fc-event.fc-event-mirror,
+.fc .fc-event.fc-event-dragging {
+  box-shadow: 0 14px 34px rgb(37 11 11 / 0.22);
+  transform: scale(1.02);
+  transition: none;
+}
+.fc .fc-event-resizing {
+  box-shadow: 0 10px 26px rgb(37 11 11 / 0.18);
+}
+/* Selecting a time range: highlight eases in. */
+.fc .fc-highlight {
+  animation: pw-fade-in 0.12s ease-out;
+}
+.fc .fc-timegrid-col.fc-day {
+  transition: background-color 0.2s ease;
 }
 .fc .fc-event.pw-event:focus-visible {
   outline: 2px solid var(--color-ink);
@@ -168,6 +195,7 @@
   color: inherit;
 }
 .pw-event-body {
+  transition: background-color 0.25s ease, border-color 0.25s ease;
   --st: var(--color-st-scheduled);
   height: 100%;
   border-left: 3px solid var(--st);
@@ -222,10 +250,29 @@
 .anim-fade-out { animation: pw-fade-in 0.17s ease-in reverse forwards; }
 .anim-rise-out { animation: pw-rise 0.17s ease-in reverse forwards; }
 .anim-slide-out { animation: pw-slide-in 0.17s ease-in reverse forwards; }
+.anim-pop-out { animation: pw-pop 0.13s ease-in reverse forwards; }
+.anim-page { animation: pw-page 0.22s cubic-bezier(0.2, 0.8, 0.2, 1); }
 .anim-slide, .anim-rise, .anim-slide-out, .anim-rise-out { will-change: transform, opacity; }
+@keyframes pw-page {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes pw-nav-next {
+  from { opacity: 0.35; transform: translateX(14px); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes pw-nav-prev {
+  from { opacity: 0.35; transform: translateX(-14px); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes pw-nav-fade {
+  from { opacity: 0.35; }
+  to { opacity: 1; }
+}
 @media (prefers-reduced-motion: reduce) {
-  .anim-fade, .anim-slide, .anim-rise, .anim-pop,
-  .anim-fade-out, .anim-rise-out, .anim-slide-out { animation: none; }
+  .anim-fade, .anim-slide, .anim-rise, .anim-pop, .anim-page,
+  .anim-fade-out, .anim-rise-out, .anim-slide-out, .anim-pop-out { animation: none; }
+  *, *::before, *::after { transition-duration: 0.01ms !important; }
 }
 
 /* Range input styled to match */

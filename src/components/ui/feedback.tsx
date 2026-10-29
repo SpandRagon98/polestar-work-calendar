@@ -1,12 +1,18 @@
 import { createContext, useCallback, useContext, useMemo, useRef, useState, type ReactNode } from 'react'
-import { AlertTriangle, CheckCircle2, Info, X } from 'lucide-react'
+import { AlertTriangle, BellRing, CheckCircle2, Info, X } from 'lucide-react'
 import { Button, Dialog, cx } from './primitives'
 
-type ToastKind = 'success' | 'error' | 'info'
+type ToastKind = 'success' | 'error' | 'info' | 'notify'
+export interface ToastAction {
+  label: string
+  onClick: () => void
+}
 interface Toast {
   id: number
   kind: ToastKind
   message: string
+  action?: ToastAction
+  leaving?: boolean
 }
 
 interface ConfirmOptions {
@@ -17,7 +23,7 @@ interface ConfirmOptions {
 }
 
 interface FeedbackApi {
-  toast: (message: string, kind?: ToastKind) => void
+  toast: (message: string, kind?: ToastKind, action?: ToastAction) => void
   confirm: (opts: ConfirmOptions) => Promise<boolean>
 }
 
@@ -28,11 +34,21 @@ export function FeedbackProvider({ children }: { children: ReactNode }) {
   const [pending, setPending] = useState<(ConfirmOptions & { resolve: (v: boolean) => void }) | null>(null)
   const nextId = useRef(1)
 
-  const toast = useCallback((message: string, kind: ToastKind = 'success') => {
-    const id = nextId.current++
-    setToasts((t) => [...t.slice(-3), { id, kind, message }])
-    setTimeout(() => setToasts((t) => t.filter((x) => x.id !== id)), kind === 'error' ? 6500 : 3500)
+  /** Animate a toast out, then remove it. */
+  const dismiss = useCallback((id: number) => {
+    setToasts((t) => t.map((x) => (x.id === id ? { ...x, leaving: true } : x)))
+    setTimeout(() => setToasts((t) => t.filter((x) => x.id !== id)), 170)
   }, [])
+
+  const toast = useCallback(
+    (message: string, kind: ToastKind = 'success', action?: ToastAction) => {
+      const id = nextId.current++
+      setToasts((t) => [...t.slice(-3), { id, kind, message, action }])
+      const ms = kind === 'error' ? 6500 : kind === 'notify' || action ? 15000 : 3500
+      setTimeout(() => dismiss(id), ms)
+    },
+    [dismiss],
+  )
 
   const confirm = useCallback(
     (opts: ConfirmOptions) => new Promise<boolean>((resolve) => setPending({ ...opts, resolve })),
@@ -57,21 +73,40 @@ export function FeedbackProvider({ children }: { children: ReactNode }) {
           <div
             key={t.id}
             role={t.kind === 'error' ? 'alert' : 'status'}
-            className="anim-rise pointer-events-auto flex max-w-sm items-start gap-2.5 rounded-2xl border border-line bg-ink px-4 py-3 text-sm text-white"
+            className={cx(
+              'pointer-events-auto flex max-w-sm items-start gap-2.5 rounded-2xl border border-line bg-ink px-4 py-3 text-sm text-white',
+              t.leaving ? 'anim-rise-out' : 'anim-rise',
+            )}
             style={{ boxShadow: 'var(--shadow-pop)' }}
           >
             {t.kind === 'success' ? (
               <CheckCircle2 size={17} className="mt-px shrink-0 text-emerald-300" />
             ) : t.kind === 'error' ? (
               <AlertTriangle size={17} className="mt-px shrink-0 text-apricot" />
+            ) : t.kind === 'notify' ? (
+              <BellRing size={17} className="mt-px shrink-0 text-apricot" />
             ) : (
               <Info size={17} className="mt-px shrink-0 text-peach" />
             )}
-            <span className="flex-1">{t.message}</span>
+            <span className="flex-1">
+              {t.message}
+              {t.action ? (
+                <button
+                  type="button"
+                  className="mt-2 block rounded-lg bg-white/12 px-2.5 py-1 text-xs font-semibold text-white transition-[background-color,transform] duration-150 hover:bg-white/20 active:scale-[0.97]"
+                  onClick={() => {
+                    t.action!.onClick()
+                    dismiss(t.id)
+                  }}
+                >
+                  {t.action.label}
+                </button>
+              ) : null}
+            </span>
             <button
               aria-label="Dismiss"
-              className="text-white/60 hover:text-white"
-              onClick={() => setToasts((all) => all.filter((x) => x.id !== t.id))}
+              className="text-white/60 transition-colors hover:text-white"
+              onClick={() => dismiss(t.id)}
             >
               <X size={15} />
             </button>

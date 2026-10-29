@@ -6,7 +6,7 @@ import { CustomFieldEditor } from './CustomFieldEditor'
 import { OwnerSelector } from './OwnerSelector'
 import { FormError, OwnerNotes, PriorityField, TimeFields } from './TaskFormParts'
 import { useFeedback } from './ui/feedback'
-import { Button, Dialog, cx } from './ui/primitives'
+import { Button, Collapse, Dialog, cx } from './ui/primitives'
 
 export type { CreateDraft } from '../hooks/useTaskForm'
 
@@ -95,8 +95,7 @@ function CreateTaskForm({ draft, categories, onClose, onCreated }: { draft: Crea
             <ChevronDown size={14} className={cx('transition-transform duration-200', more && 'rotate-180')} />
           </button>
 
-          {more ? (
-            <div className="anim-pop mt-4 space-y-5">
+          <Collapse open={more} className="space-y-5 pt-4 pb-1">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <span className="label mb-0">Priority</span>
                 <PriorityField form={form} />
@@ -136,8 +135,7 @@ function CreateTaskForm({ draft, categories, onClose, onCreated }: { draft: Crea
                 <span className="label">Custom fields</span>
                 <CustomFieldEditor fields={form.fields} onChange={form.setFields} people={profiles} />
               </div>
-            </div>
-          ) : null}
+          </Collapse>
         </div>
 
         <FormError message={form.error} />

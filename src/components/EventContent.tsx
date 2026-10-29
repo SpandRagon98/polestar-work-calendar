@@ -83,8 +83,8 @@ export function EventContent({ task, meId, zone, people, now }: Props) {
       ) : null}
       <div className="absolute inset-x-0 bottom-0 h-[3px] bg-black/5" aria-hidden>
         <div
-          className="h-full transition-[width] duration-300"
-          style={{ width: `${task.progress_percent}%`, background: progressColor(task.progress_percent) }}
+          className="h-full origin-left transition-transform duration-300 ease-out"
+          style={{ transform: `scaleX(${task.progress_percent / 100})`, background: progressColor(task.progress_percent) }}
         />
       </div>
     </div>
