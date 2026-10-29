@@ -18,7 +18,7 @@ describe('motion level', () => {
   })
 
   it('follows OS reduced motion in auto, but an explicit choice overrides it', () => {
-    vi.stubGlobal('matchMedia', (q: string) => ({ matches: q.includes('reduce') }) as MediaQueryList)
+    vi.stubGlobal('window', { matchMedia: (q: string) => ({ matches: q.includes('reduce') }) as MediaQueryList })
     try {
       expect(resolveMotion('auto')).toBe('off')
       expect(resolveMotion('full')).toBe('full')
