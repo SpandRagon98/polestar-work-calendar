@@ -271,11 +271,8 @@
   from { opacity: 0.35; }
   to { opacity: 1; }
 }
-@media (prefers-reduced-motion: reduce) {
-  .anim-fade, .anim-slide, .anim-rise, .anim-pop, .anim-page,
-  .anim-fade-out, .anim-rise-out, .anim-slide-out, .anim-pop-out { animation: none; }
-  *, *::before, *::after { transition-duration: 0.01ms !important; }
-}
+/* Reduced motion is handled in src/lib/motion.ts: in Auto it resolves to
+   data-motion="off", and an explicit Full/Lite choice overrides it. */
 
 /* Range input styled to match */
 input[type='range'].pw-range {

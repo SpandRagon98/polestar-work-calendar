@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { isSoftwareRendering, resolveMotion } from '../lib/motion'
 
 describe('motion level', () => {
@@ -15,5 +15,16 @@ describe('motion level', () => {
     expect(resolveMotion('lite')).toBe('lite')
     expect(resolveMotion('off')).toBe('off')
     expect(resolveMotion('full')).toBe('full')
+  })
+
+  it('follows OS reduced motion in auto, but an explicit choice overrides it', () => {
+    vi.stubGlobal('matchMedia', (q: string) => ({ matches: q.includes('reduce') }) as MediaQueryList)
+    try {
+      expect(resolveMotion('auto')).toBe('off')
+      expect(resolveMotion('full')).toBe('full')
+      expect(resolveMotion('lite')).toBe('lite')
+    } finally {
+      vi.unstubAllGlobals()
+    }
   })
 })

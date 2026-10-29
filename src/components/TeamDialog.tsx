@@ -11,6 +11,7 @@ import {
   graphicsRenderer,
   isSoftwareRendering,
   learnedLite,
+  prefersReducedMotion,
   readMotionPref,
   resolveMotion,
   sampleFrames,
@@ -455,6 +456,9 @@ function MotionSetting() {
       <p className="mt-1.5 text-xs leading-relaxed text-stone">
         {pref === 'auto' ? `Auto is using ${level}${learnedLite() ? ' (learned from this device)' : ''}: ` : ''}
         {MOTION_HINT[level]}
+        {pref === 'auto' && level === 'off' && prefersReducedMotion()
+          ? ' Your computer has animations turned off; choose Full to turn them on here.'
+          : ''}
       </p>
 
       <div className="mt-3 rounded-2xl border border-line bg-white p-3.5">

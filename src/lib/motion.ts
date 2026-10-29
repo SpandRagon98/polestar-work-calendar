@@ -6,7 +6,11 @@
 //
 //   full — every animation
 //   lite — quick fades only: no slides, scaling, lifting or calendar glides
-//   off  — no animation (also used when the OS asks for reduced motion)
+//   off  — no animation
+//
+// "Auto" follows the OS reduced-motion setting (Windows: Settings › Accessibility ›
+// Visual effects › Animation effects). An explicit choice overrides it, so someone
+// whose machine has animations turned off can still opt back in.
 //
 // With "auto" the app starts from what it can detect up front, then keeps
 // measuring real animations and settles on Lite if this device keeps dropping
@@ -64,9 +68,14 @@ export function isSoftwareRendering(renderer = graphicsRenderer()): boolean {
   return renderer === 'none' || /swiftshader|llvmpipe|softpipe|software|basic render driver|mesa offscreen/i.test(renderer)
 }
 
+/** True when the OS asks apps to reduce motion. */
+export function prefersReducedMotion(): boolean {
+  return typeof window !== 'undefined' && !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+}
+
 export function resolveMotion(pref: MotionPref = readMotionPref()): MotionLevel {
-  if (typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return 'off'
   if (pref !== 'auto') return pref
+  if (prefersReducedMotion()) return 'off'
   if (learnedLite()) return 'lite'
   if (isSoftwareRendering()) return 'lite'
   // Very small machines: few cores and little memory.
