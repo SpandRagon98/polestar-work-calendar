@@ -5,12 +5,12 @@ import { Button, Logo } from './ui/primitives'
 
 type Mode = 'signin' | 'forgot'
 
-export function AuthScreen() {
+export function AuthScreen({ linkError }: { linkError?: string }) {
   const [mode, setMode] = useState<Mode>('signin')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [busy, setBusy] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(linkError ?? null)
   const [notice, setNotice] = useState<string | null>(null)
 
   async function submit(e: FormEvent) {
@@ -112,68 +112,114 @@ export function AuthScreen() {
   )
 }
 
-export function SetPasswordScreen({ onDone, isInvite }: { onDone: () => void; isInvite: boolean }) {
+/**
+ * Finish an invite or password reset. For token-hash links the one-time token is
+ * only redeemed when the person submits — email security scanners that open the
+ * link first can't use it up.
+ */
+export function SetPasswordScreen({
+  kind,
+  tokenHash,
+  onDone,
+  onCancel,
+}: {
+  kind: 'invite' | 'recovery'
+  tokenHash?: string
+  onDone: () => void
+  onCancel: () => void
+}) {
   const [password, setPassword] = useState('')
   const [confirm, setConfirm] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [expired, setExpired] = useState(false)
+  const isInvite = kind === 'invite'
 
   async function submit(e: FormEvent) {
     e.preventDefault()
+    setError(null)
     if (password.length < 8) return setError('Use at least 8 characters.')
     if (password !== confirm) return setError('Passwords do not match.')
     setBusy(true)
-    const { error } = await supabase.auth.updateUser({ password })
-    setBusy(false)
-    if (error) setError(error.message)
-    else onDone()
+    try {
+      if (tokenHash) {
+        const { error } = await supabase.auth.verifyOtp({ token_hash: tokenHash, type: kind })
+        if (error) {
+          setExpired(true)
+          return setError('This link has expired or was already used.')
+        }
+      }
+      const { error } = await supabase.auth.updateUser({ password })
+      if (error) return setError(error.message)
+      onDone()
+    } finally {
+      setBusy(false)
+    }
   }
 
   return (
     <AuthLayout>
-      <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-2xl bg-peach-50 text-maroon">
+      <div className="mb-5 flex h-11 w-11 items-center justify-center rounded-2xl bg-peach-50 text-maroon">
         <KeyRound size={20} />
       </div>
       <h1 className="font-display text-2xl font-bold text-ink">{isInvite ? 'Welcome to the team' : 'Choose a new password'}</h1>
-      <p className="mt-1 text-sm text-ash">
-        {isInvite ? 'Set a password to finish creating your account.' : 'Enter a new password for your account.'}
+      <p className="mt-1.5 text-sm leading-relaxed text-ash">
+        {isInvite
+          ? 'You’ve been invited to Polestar Work Calendar. Choose a password to activate your account.'
+          : 'Enter a new password for your account.'}
       </p>
-      <form onSubmit={submit} className="mt-7 space-y-4">
-        <div>
-          <label htmlFor="new-password" className="label">
-            New password
-          </label>
-          <input
-            id="new-password"
-            type="password"
-            autoComplete="new-password"
-            className="field h-11"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-          />
-        </div>
-        <div>
-          <label htmlFor="confirm-password" className="label">
-            Confirm password
-          </label>
-          <input
-            id="confirm-password"
-            type="password"
-            autoComplete="new-password"
-            className="field h-11"
-            value={confirm}
-            onChange={(e) => setConfirm(e.target.value)}
-          />
-        </div>
-        {error ? (
-          <p role="alert" className="rounded-xl bg-st-pending/8 px-3 py-2 text-sm text-st-pending">
-            {error}
+      {expired ? (
+        <div className="mt-7 space-y-4">
+          <p role="alert" className="rounded-xl bg-st-pending/8 px-3.5 py-3 text-sm leading-relaxed text-st-pending">
+            This link has expired or was already used. {isInvite ? 'Ask your admin to send a new invite.' : 'Request a new reset link.'}
           </p>
-        ) : null}
-        <Button type="submit" variant="primary" className="h-11 w-full justify-center" loading={busy}>
-          Save password
-        </Button>
-      </form>
+          <Button variant="primary" className="h-11 w-full justify-center" onClick={onCancel}>
+            Go to sign in
+          </Button>
+        </div>
+      ) : (
+        <form onSubmit={submit} className="mt-7 space-y-4">
+          <div>
+            <label htmlFor="new-password" className="label">
+              New password
+            </label>
+            <input
+              id="new-password"
+              type="password"
+              autoComplete="new-password"
+              autoFocus
+              className="field h-11"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+            />
+            <p className="mt-1.5 text-xs text-stone">At least 8 characters.</p>
+          </div>
+          <div>
+            <label htmlFor="confirm-password" className="label">
+              Confirm password
+            </label>
+            <input
+              id="confirm-password"
+              type="password"
+              autoComplete="new-password"
+              className="field h-11"
+              value={confirm}
+              onChange={(e) => setConfirm(e.target.value)}
+            />
+          </div>
+          {error ? (
+            <p role="alert" className="rounded-xl bg-st-pending/8 px-3.5 py-2.5 text-sm text-st-pending">
+              {error}
+            </p>
+          ) : null}
+          <Button type="submit" variant="primary" className="h-11 w-full justify-center" loading={busy}>
+            {isInvite ? 'Activate account' : 'Save password'}
+          </Button>
+          <button type="button" className="w-full text-center text-sm text-ash hover:text-ink" onClick={onCancel}>
+            Back to sign in
+          </button>
+        </form>
+      )}
     </AuthLayout>
   )
 }

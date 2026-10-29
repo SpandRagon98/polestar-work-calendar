@@ -13,8 +13,9 @@ type Preset = 'today' | 'visible' | 'week' | 'custom'
 interface Props {
   open: boolean
   onClose: () => void
-  visibleStart: string // yyyy-mm-dd (inclusive)
-  visibleEnd: string // yyyy-mm-dd (inclusive)
+  /** The calendar's visible range (yyyy-mm-dd, inclusive); without it the dialog starts on this week. */
+  visibleStart?: string
+  visibleEnd?: string
 }
 
 const MAX_DAYS = 92
@@ -23,9 +24,12 @@ export function ExportDialog({ open, onClose, visibleStart, visibleEnd }: Props)
   const { me, profiles, zone } = useApp()
   const { toast } = useFeedback()
   const today = DateTime.now().setZone(zone)
-  const [preset, setPreset] = useState<Preset>('visible')
-  const [from, setFrom] = useState(visibleStart)
-  const [to, setTo] = useState(visibleEnd)
+  const weekStart = today.startOf('week').toISODate()!
+  const weekEnd = today.startOf('week').plus({ days: 6 }).toISODate()!
+  const hasVisible = Boolean(visibleStart && visibleEnd)
+  const [preset, setPreset] = useState<Preset>(hasVisible ? 'visible' : 'week')
+  const [from, setFrom] = useState(visibleStart ?? weekStart)
+  const [to, setTo] = useState(visibleEnd ?? weekEnd)
   const [scope, setScope] = useState<'mine' | 'all'>(me.role === 'admin' ? 'all' : 'mine')
   const [busy, setBusy] = useState(false)
 
@@ -34,12 +38,12 @@ export function ExportDialog({ open, onClose, visibleStart, visibleEnd }: Props)
     if (p === 'today') {
       setFrom(today.toISODate()!)
       setTo(today.toISODate()!)
-    } else if (p === 'visible') {
+    } else if (p === 'visible' && visibleStart && visibleEnd) {
       setFrom(visibleStart)
       setTo(visibleEnd)
     } else if (p === 'week') {
-      setFrom(today.startOf('week').toISODate()!)
-      setTo(today.startOf('week').plus({ days: 6 }).toISODate()!)
+      setFrom(weekStart)
+      setTo(weekEnd)
     }
   }
 
@@ -90,11 +94,11 @@ export function ExportDialog({ open, onClose, visibleStart, visibleEnd }: Props)
       <div className="space-y-5">
         <div>
           <span className="label">Date range</span>
-          <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-4">
+          <div className={cx('grid grid-cols-2 gap-1.5', hasVisible ? 'sm:grid-cols-4' : 'sm:grid-cols-3')}>
             {(
               [
                 ['today', 'Today'],
-                ['visible', 'Visible'],
+                ...(hasVisible ? [['visible', 'Visible']] : []),
                 ['week', 'This week'],
                 ['custom', 'Custom'],
               ] as [Preset, string][]

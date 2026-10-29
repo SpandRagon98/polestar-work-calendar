@@ -2,7 +2,8 @@
 import { SANDBOX_USERS, getDb } from './db'
 
 export const supabaseConfigured = true
-export const initialAuthLinkType: 'invite' | 'recovery' | null = null
+export type AuthLink = { kind: 'invite' | 'recovery'; tokenHash?: string } | { kind: 'error'; message: string }
+export const initialAuthLink: AuthLink | null = null
 export function appUrl(): string {
   return window.location.href
 }
@@ -78,6 +79,9 @@ export const supabase = {
     },
     async updateUser() {
       return { error: null }
+    },
+    async verifyOtp() {
+      return { error: { message: 'Email links are not available in the sandbox.' } }
     },
   },
   channel() {

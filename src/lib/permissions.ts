@@ -45,3 +45,13 @@ export function isMyTask(task: Task, userId: string): boolean {
     task.assignments.some((a) => a.user_id === userId && a.approval_status !== 'declined')
   )
 }
+
+/**
+ * Tickets (tasks someone else proposed) stay off a calendar until accepted.
+ * My calendar: tasks where my assignment is accepted. Team: tasks anyone accepted.
+ */
+export function onCalendar(task: Task, userId: string, scope: 'mine' | 'team'): boolean {
+  return task.assignments.some(
+    (a) => a.approval_status === 'accepted' && (scope === 'team' || a.user_id === userId),
+  )
+}

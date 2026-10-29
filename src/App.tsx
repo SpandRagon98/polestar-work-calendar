@@ -1,13 +1,17 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { DatabaseZap, ShieldAlert } from 'lucide-react'
-import { supabaseConfigured, initialAuthLinkType } from './lib/supabase'
+import { supabaseConfigured } from './lib/supabase'
+import { useRoute } from './lib/router'
 import { fetchProfiles } from './lib/api'
 import type { Profile } from './lib/types'
 import { browserZone } from './lib/time'
 import { AppContext, useMediaQuery, type AppContextValue } from './context'
 import { useAuth } from './hooks/useAuth'
 import { AuthLayout, AuthScreen, SetPasswordScreen } from './components/AuthScreen'
+import { AppShell } from './components/AppShell'
 import { CalendarPage } from './components/CalendarPage'
+import { NewTicketPage } from './components/NewTicketPage'
+import { TicketsPage } from './components/TicketsPage'
 import { FeedbackProvider } from './components/ui/feedback'
 import { Button, Logo, Spinner } from './components/ui/primitives'
 
@@ -49,11 +53,23 @@ function Root() {
     }
   }, [profile, reloadProfile, profiles, isMobile, loadProfiles])
 
+  const link = auth.authLink
   if (!auth.ready) return <FullScreenSpinner />
-  if (!auth.session) return <AuthScreen />
-  if (auth.mustSetPassword) {
-    return <SetPasswordScreen isInvite={initialAuthLinkType === 'invite'} onDone={auth.passwordSet} />
+  // Invite / reset links with a token hash: verified when the person submits a password.
+  if (link && link.kind !== 'error' && (link.tokenHash || auth.session)) {
+    return (
+      <SetPasswordScreen
+        kind={link.kind}
+        tokenHash={link.tokenHash}
+        onDone={auth.clearAuthLink}
+        onCancel={() => {
+          auth.clearAuthLink()
+          if (link.tokenHash) void auth.signOut()
+        }}
+      />
+    )
   }
+  if (!auth.session) return <AuthScreen linkError={link?.kind === 'error' ? link.message : undefined} />
   if (auth.profileLoading && !auth.profile) return <FullScreenSpinner />
   if (!auth.profile || !auth.profile.active || auth.profileError) {
     return (
@@ -80,8 +96,33 @@ function Root() {
 
   return (
     <AppContext.Provider value={ctx}>
-      <CalendarPage key={ctx.zone} onSignOut={() => void auth.signOut()} reloadMe={ctx.reloadProfiles} />
+      <Pages key={ctx.zone} onSignOut={() => void auth.signOut()} reloadMe={ctx.reloadProfiles} requester={ctx.me.role === 'requester'} />
     </AppContext.Provider>
+  )
+}
+
+function Pages({ onSignOut, reloadMe, requester }: { onSignOut: () => void; reloadMe: () => Promise<void>; requester: boolean }) {
+  const [route, navigate] = useRoute()
+  // Requesters only work with tickets; everyone else lands on the calendar.
+  const name = route.name === null || (requester && route.name === 'calendar') ? (requester ? 'tickets' : 'calendar') : route.name
+  useEffect(() => {
+    if (route.name !== name) navigate(name, Object.fromEntries(route.params), true)
+  }, [route, name, navigate])
+
+  return (
+    <AppShell route={name} navigate={navigate} onSignOut={onSignOut} reloadMe={reloadMe}>
+      {name === 'calendar' ? (
+        <CalendarPage />
+      ) : name === 'new-ticket' ? (
+        <NewTicketPage />
+      ) : (
+        <TicketsPage
+          key={route.params.toString()}
+          openId={route.params.get('open') ?? undefined}
+          initialTab={route.params.get('tab') ?? undefined}
+        />
+      )}
+    </AppShell>
   )
 }
 

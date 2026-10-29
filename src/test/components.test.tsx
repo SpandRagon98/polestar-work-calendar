@@ -74,13 +74,13 @@ describe('creating a task from a selected range', () => {
     expect(document.activeElement).toBe(screen.getByLabelText('Task title'))
   })
 
-  it('turns into a request when another owner is added', async () => {
+  it('turns into a ticket when another owner is added', async () => {
     wrap(<CreateTaskDialog draft={draft} categories={[]} onClose={() => {}} onCreated={() => {}} />)
     await userEvent.type(screen.getByLabelText('Task title'), 'Joint review')
     await userEvent.click(screen.getByRole('button', { name: 'Owners' }))
     await userEvent.click(screen.getByRole('option', { name: /Mandya/ }))
-    expect(screen.getByText(/Mandya will be asked to accept/)).toBeInTheDocument()
-    await userEvent.click(screen.getByRole('button', { name: 'Send request' }))
+    expect(screen.getByText(/needs to accept before it appears on their calendar/)).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: 'Send ticket' }))
     await waitFor(() => expect(api.createTask).toHaveBeenCalled(), { timeout: 3000 })
     expect(vi.mocked(api.createTask).mock.calls[0][0].owner_ids).toEqual([SPANDAN, MANDYA])
   })

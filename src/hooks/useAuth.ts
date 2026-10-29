@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import type { Session } from '@supabase/supabase-js'
-import { initialAuthLinkType, supabase } from '../lib/supabase'
+import { initialAuthLink, supabase, type AuthLink } from '../lib/supabase'
 import { fetchMyProfile, toApiError, updateMyProfile } from '../lib/api'
 import { browserZone } from '../lib/time'
 import type { Profile } from '../lib/types'
@@ -11,7 +11,8 @@ export function useAuth() {
   const [profile, setProfile] = useState<Profile | null>(null)
   const [profileLoading, setProfileLoading] = useState(false)
   const [profileError, setProfileError] = useState<string | null>(null)
-  const [mustSetPassword, setMustSetPassword] = useState(initialAuthLinkType !== null)
+  /** An invite / password-reset link that still needs a new password, or a link error to show. */
+  const [authLink, setAuthLink] = useState<AuthLink | null>(initialAuthLink)
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
@@ -21,7 +22,7 @@ export function useAuth() {
     const { data } = supabase.auth.onAuthStateChange((event, s) => {
       setSession(s)
       setReady(true)
-      if (event === 'PASSWORD_RECOVERY') setMustSetPassword(true)
+      if (event === 'PASSWORD_RECOVERY') setAuthLink((cur) => cur ?? { kind: 'recovery' })
     })
     return () => data.subscription.unsubscribe()
   }, [])
@@ -67,10 +68,12 @@ export function useAuth() {
     profileError,
     reloadProfile: loadProfile,
     signOut,
-    mustSetPassword,
-    passwordSet: () => {
-      setMustSetPassword(false)
-      history.replaceState(null, '', window.location.pathname + window.location.search)
+    authLink,
+    clearAuthLink: () => {
+      setAuthLink(null)
+      if (window.location.hash && !window.location.hash.startsWith('#/')) {
+        history.replaceState(null, '', window.location.pathname + window.location.search)
+      }
     },
   }
 }

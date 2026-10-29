@@ -10,6 +10,12 @@ import { Avatar, Button, Dialog, cx } from './ui/primitives'
 
 const ROLE_LABEL: Record<Role, string> = { admin: 'Admin', contributor: 'Contributor', requester: 'Requester' }
 const WEEKDAYS = ['M', 'T', 'W', 'T', 'F', 'S', 'S']
+const DAY_NAMES = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
+const ROLE_HINT: Record<Role, string> = {
+  admin: 'Admins can edit any task and manage the team.',
+  contributor: 'Contributors plan their own work, see the team calendar and answer tickets.',
+  requester: 'Requesters only see the Tickets page: they raise tickets and follow their progress.',
+}
 
 /** Admin-only: invite people and manage roles, capacity and working days. */
 export function TeamDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
@@ -46,150 +52,171 @@ export function TeamDialog({ open, onClose }: { open: boolean; onClose: () => vo
     }
   }
 
+  const activeCount = profiles.filter((p) => p.active).length
+
   return (
-    <Dialog open={open} onClose={onClose} title="Team" description="Roles, daily capacity and working days." width="max-w-3xl">
-      <div className="mb-4 flex justify-end">
-        {!inviting ? (
-          <Button variant="primary" size="sm" onClick={() => setInviting(true)}>
-            <UserPlus size={14} /> Invite teammate
-          </Button>
-        ) : null}
-      </div>
+    <Dialog
+      open={open}
+      onClose={onClose}
+      title="Team"
+      description="Invite people and set their role, daily capacity and working days."
+      width="max-w-4xl"
+    >
       {inviting ? (
-        <div className="anim-pop mb-5 rounded-2xl border border-line bg-white p-4">
-          <div className="grid gap-2 sm:grid-cols-[1fr_1fr_auto]">
-            <input className="field h-10" placeholder="Full name" aria-label="Full name" value={name} onChange={(e) => setName(e.target.value)} />
-            <input
-              className="field h-10"
-              type="email"
-              placeholder="email@company.com"
-              aria-label="Email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-            />
-            <select className="field h-10" aria-label="Role" value={role} onChange={(e) => setRole(e.target.value as Role)}>
-              {(Object.keys(ROLE_LABEL) as Role[]).map((r) => (
-                <option key={r} value={r}>
-                  {ROLE_LABEL[r]}
-                </option>
-              ))}
-            </select>
+        <div className="anim-pop mb-6 rounded-2xl border border-line bg-white p-5">
+          <p className="mb-3 text-sm font-semibold text-ink">Invite a teammate</p>
+          <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1.3fr)_9rem]">
+            <div>
+              <label className="label" htmlFor="invite-name">
+                Full name
+              </label>
+              <input id="invite-name" className="field h-10" autoFocus value={name} onChange={(e) => setName(e.target.value)} />
+            </div>
+            <div>
+              <label className="label" htmlFor="invite-email">
+                Work email
+              </label>
+              <input
+                id="invite-email"
+                className="field h-10"
+                type="email"
+                placeholder="name@polestaranalytics.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+              />
+            </div>
+            <div>
+              <label className="label" htmlFor="invite-role">
+                Role
+              </label>
+              <select id="invite-role" className="field h-10" value={role} onChange={(e) => setRole(e.target.value as Role)}>
+                {(Object.keys(ROLE_LABEL) as Role[]).map((r) => (
+                  <option key={r} value={r}>
+                    {ROLE_LABEL[r]}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
-          <p className="mt-2 text-xs text-stone">
-            They’ll get an email link to set a password. Requires the <code>invite-user</code> Edge Function (see README). You can
-            also invite from the Supabase dashboard.
-          </p>
-          <div className="mt-3 flex justify-end gap-1.5">
+          <p className="mt-3 text-xs leading-relaxed text-stone">{ROLE_HINT[role]} They’ll get an email to set a password.</p>
+          <div className="mt-4 flex justify-end gap-2">
             <Button size="sm" variant="ghost" onClick={() => setInviting(false)}>
               Cancel
             </Button>
             <Button size="sm" variant="primary" loading={busy} disabled={!email.includes('@') || !name.trim()} onClick={() => void invite()}>
-              <Mail size={14} /> Send invite
+              {!busy ? <Mail size={14} /> : null} Send invite
             </Button>
           </div>
         </div>
-      ) : null}
-      <div className="overflow-x-auto">
-        <table className="w-full min-w-[640px] text-sm">
-          <thead>
-            <tr className="text-left text-xs text-stone">
-              <th className="pb-2 font-medium">Person</th>
-              <th className="pb-2 font-medium">Role</th>
-              <th className="pb-2 font-medium">Capacity / day</th>
-              <th className="pb-2 font-medium">Working days</th>
-              <th className="pb-2 font-medium">Active</th>
-            </tr>
-          </thead>
-          <tbody>
-            {profiles.map((p) => (
-              <tr key={p.user_id} className={cx('border-t border-line', !p.active && 'opacity-55')}>
-                <td className="py-2.5 pr-3">
-                  <div className="flex items-center gap-2.5">
-                    <Avatar id={p.user_id} name={p.name} size={28} />
-                    <div className="min-w-0">
-                      <p className="truncate font-medium">
-                        {p.name}
-                        {p.user_id === me.user_id ? <span className="text-stone"> (you)</span> : null}
-                      </p>
-                      <p className="truncate text-xs text-stone">
-                        {p.email} · {p.timezone ?? 'zone not set'}
-                      </p>
-                    </div>
-                  </div>
-                </td>
-                <td className="py-2.5 pr-3">
-                  <select
-                    className="field h-8 w-32 py-0"
-                    aria-label={`Role for ${p.name}`}
-                    value={p.role}
-                    onChange={(e) => void save(p, { role: e.target.value as Role })}
-                  >
-                    {(Object.keys(ROLE_LABEL) as Role[]).map((r) => (
-                      <option key={r} value={r}>
-                        {ROLE_LABEL[r]}
-                      </option>
-                    ))}
-                  </select>
-                </td>
-                <td className="py-2.5 pr-3">
-                  <div className="flex items-center gap-1">
-                    <input
-                      type="number"
-                      min={0}
-                      max={24}
-                      step={0.5}
-                      aria-label={`Daily capacity hours for ${p.name}`}
-                      className="field h-8 w-16 py-0 text-right"
-                      defaultValue={p.capacity_minutes / 60}
-                      onBlur={(e) => {
-                        const minutes = Math.round(Number(e.target.value) * 60)
-                        if (Number.isFinite(minutes) && minutes !== p.capacity_minutes) void save(p, { capacity_minutes: minutes })
-                      }}
-                    />
-                    <span className="text-xs text-stone">h</span>
-                  </div>
-                </td>
-                <td className="py-2.5 pr-3">
-                  <div className="flex gap-0.5">
-                    {WEEKDAYS.map((d, i) => {
-                      const day = i + 1
-                      const on = p.work_days.includes(day)
-                      return (
-                        <button
-                          key={day}
-                          type="button"
-                          aria-pressed={on}
-                          aria-label={`${['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'][i]} for ${p.name}`}
-                          onClick={() =>
-                            void save(p, {
-                              work_days: on ? p.work_days.filter((x) => x !== day) : [...p.work_days, day].sort(),
-                            })
-                          }
-                          className={cx(
-                            'h-7 w-7 rounded-lg text-[11px] font-semibold',
-                            on ? 'bg-maroon text-white' : 'bg-canvas text-stone hover:text-ink',
-                          )}
-                        >
-                          {d}
-                        </button>
-                      )
-                    })}
-                  </div>
-                </td>
-                <td className="py-2.5">
-                  <input
-                    type="checkbox"
-                    className="h-4 w-4 accent-maroon"
-                    aria-label={`${p.name} is active`}
-                    checked={p.active}
-                    disabled={p.user_id === me.user_id}
-                    onChange={(e) => void save(p, { active: e.target.checked })}
-                  />
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+      ) : (
+        <div className="mb-5 flex items-center justify-between gap-3">
+          <p className="text-sm text-ash">
+            {activeCount} active member{activeCount === 1 ? '' : 's'}
+          </p>
+          <Button variant="primary" size="sm" onClick={() => setInviting(true)}>
+            <UserPlus size={14} /> Invite teammate
+          </Button>
+        </div>
+      )}
+
+      <div className="overflow-hidden rounded-2xl border border-line">
+        <div className="hidden grid-cols-[minmax(0,1fr)_8.5rem_6.5rem_13.5rem_3.5rem] items-center gap-4 bg-canvas/60 px-4 py-2.5 text-[11px] font-semibold tracking-wide text-stone uppercase md:grid">
+          <span>Person</span>
+          <span>Role</span>
+          <span>Capacity</span>
+          <span>Working days</span>
+          <span className="text-center">Active</span>
+        </div>
+        <ul className="divide-y divide-line">
+          {profiles.map((p) => (
+            <li
+              key={p.user_id}
+              className={cx(
+                'grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-3 px-4 py-3.5 md:grid-cols-[minmax(0,1fr)_8.5rem_6.5rem_13.5rem_3.5rem]',
+                !p.active && 'opacity-55',
+              )}
+            >
+              <div className="flex min-w-0 items-center gap-3">
+                <Avatar id={p.user_id} name={p.name} size={32} />
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-medium text-ink">
+                    {p.name}
+                    {p.user_id === me.user_id ? <span className="font-normal text-stone"> (you)</span> : null}
+                  </p>
+                  <p className="truncate text-xs text-stone">
+                    {p.email}
+                    {p.timezone ? ` · ${p.timezone}` : ''}
+                  </p>
+                </div>
+              </div>
+              <label className="flex items-center justify-end gap-2 text-xs text-ash md:order-last md:justify-center">
+                <span className="md:sr-only">Active</span>
+                <input
+                  type="checkbox"
+                  className="h-4 w-4 accent-maroon"
+                  aria-label={`${p.name} is active`}
+                  checked={p.active}
+                  disabled={p.user_id === me.user_id}
+                  onChange={(e) => void save(p, { active: e.target.checked })}
+                />
+              </label>
+              <select
+                className="field h-9 py-0 max-md:col-span-2"
+                aria-label={`Role for ${p.name}`}
+                value={p.role}
+                onChange={(e) => void save(p, { role: e.target.value as Role })}
+              >
+                {(Object.keys(ROLE_LABEL) as Role[]).map((r) => (
+                  <option key={r} value={r}>
+                    {ROLE_LABEL[r]}
+                  </option>
+                ))}
+              </select>
+              <div className="flex items-center gap-1.5">
+                <input
+                  type="number"
+                  min={0}
+                  max={24}
+                  step={0.5}
+                  aria-label={`Daily capacity hours for ${p.name}`}
+                  className="field h-9 w-16 py-0 text-right tabular-nums"
+                  defaultValue={p.capacity_minutes / 60}
+                  onBlur={(e) => {
+                    const minutes = Math.round(Number(e.target.value) * 60)
+                    if (Number.isFinite(minutes) && minutes !== p.capacity_minutes) void save(p, { capacity_minutes: minutes })
+                  }}
+                />
+                <span className="text-xs text-stone">h/day</span>
+              </div>
+              <div className="flex gap-1 max-md:justify-end">
+                {WEEKDAYS.map((d, i) => {
+                  const day = i + 1
+                  const on = p.work_days.includes(day)
+                  return (
+                    <button
+                      key={day}
+                      type="button"
+                      aria-pressed={on}
+                      aria-label={`${DAY_NAMES[i]} for ${p.name}`}
+                      title={DAY_NAMES[i]}
+                      onClick={() =>
+                        void save(p, {
+                          work_days: on ? p.work_days.filter((x) => x !== day) : [...p.work_days, day].sort(),
+                        })
+                      }
+                      className={cx(
+                        'h-7 w-7 rounded-lg text-[11px] font-semibold transition-colors',
+                        on ? 'bg-maroon text-white hover:bg-maroon-600' : 'bg-canvas text-stone hover:text-ink',
+                      )}
+                    >
+                      {d}
+                    </button>
+                  )
+                })}
+              </div>
+            </li>
+          ))}
+        </ul>
       </div>
     </Dialog>
   )

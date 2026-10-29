@@ -24,11 +24,13 @@ GitHub Pages (static app) ──► Supabase Auth · Postgres (RLS + SQL functio
 | **Tasks** | Title, time, owners, optional description / priority / project. Progress 0–100% by slider, typed value or one-tap steps. Status: Scheduled · In progress · Pending (with reason) · Completed · Cancelled. Completion always sets 100% + timestamp explicitly; time passing never completes a task — it shows **Needs update** instead. *Create follow-up* links a new task without touching the original. |
 | **Custom fields** | *+ Add field* on any task: short/long text, number, date, dropdown, checkbox, URL, person. Rename, reorder, remove, pin two to the calendar. Stored as JSONB; validated in the browser and by a database CHECK. A *person* field never assigns that person. |
 | **Notes & history** | Short progress notes (bookmarks) per task, plus an automatic, tamper-proof audit trail of reschedules, status, progress, owners, approvals and field changes. |
+| **Tickets** | A dedicated Tickets page and *New ticket* page. Tickets stay **off calendars until the assignee accepts**; they appear under *To respond* with one-click Accept. Requesters only see Tickets. |
 | **Requests & approvals** | Add someone else as owner and the task becomes a request: tentative (purple, striped) on their calendar with an in-app notification. Each owner can Accept, Decline or Suggest another time. Confirmed only when every requested owner accepts; a decline/suggestion sends it back for revision; changing the proposal re-asks everyone. Owners added later are pending individually. |
 | **Utilization** | Each accepted owner gets the full duration of confirmed work. Planned ÷ available (default 8h, Mon–Fri, per-person adjustable), per local day in each person's time zone. Overlaps are never merged — they're flagged as conflicts. Over-capacity days are highlighted. |
 | **Live updates** | Supabase Realtime: moves, progress, status, owners, approvals and notes appear for other users without refreshing. Stale edits are rejected with a version check and the latest data is shown. |
 | **Excel export** | `.xlsx` generated in the browser with three sheets — Tasks (custom fields as columns), Utilization (per user/day with daily totals), Bookmarks and History. Frozen headers, number/date formats, formula-injection safe. |
-| **Accounts** | Email + password, invite-only. Roles: Admin, Contributor, Requester — enforced by Postgres RLS and security-definer functions, not by the UI. |
+| **Navigation** | Collapsible sidebar (Ctrl/⌘ + B), hash routes `#/calendar`, `#/tickets`, `#/tickets/new` that work on GitHub Pages. |
+| **Accounts** | Email + password, invite-only; scanner-safe invite links (see [docs/EMAIL_TEMPLATES.md](docs/EMAIL_TEMPLATES.md)). Roles: Admin, Contributor, Requester — enforced by Postgres RLS and security-definer functions, not by the UI. |
 
 ## Run it locally
 

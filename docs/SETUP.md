@@ -73,6 +73,10 @@ enable Realtime for those three tables under **Database → Replication**.
 
 Invite and password-reset emails link back to these URLs.
 
+> **Use the Polestar email templates.** Paste the invite and reset templates from
+> [EMAIL_TEMPLATES.md](EMAIL_TEMPLATES.md) under **Authentication → Emails**. They
+> keep corporate link scanners from using up invite links, and look like Polestar.
+
 > **Email limits.** The built-in Supabase email sender is rate-limited (a few
 > emails per hour) — fine for inviting a small team over a day. For more, add your
 > own SMTP under **Authentication → Emails → SMTP settings**.
@@ -114,7 +118,7 @@ Roles:
 |---|---|
 | **Admin** | Everything: view/edit all tasks, manage people, roles, capacity, working days |
 | **Contributor** | See the team calendar; create own tasks; edit tasks they own (accepted) or requested; accept/decline/suggest; request others’ time |
-| **Requester** | Raise requests; see and manage only the requests they raised; answer if assigned |
+| **Requester** | Only the **Tickets** page: raise tickets, follow their status, adjust them if sent back for revision |
 
 ## 6. Deploy to GitHub Pages
 

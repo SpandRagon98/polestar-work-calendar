@@ -180,9 +180,33 @@ export async function fetchPendingForMe(userId: string): Promise<Task[]> {
 }
 
 /** Requests I raised, newest first. */
-export async function fetchMyRequests(userId: string): Promise<Task[]> {
+export async function fetchMyRequests(userId: string, limit = 25): Promise<Task[]> {
   const rows = check(
-    await taskQuery().eq('requester_id', userId).order('created_at', { ascending: false }).limit(25),
+    await taskQuery().eq('requester_id', userId).order('created_at', { ascending: false }).limit(limit),
+  ) as unknown as TaskRow[]
+  return rows.map(normalizeTask)
+}
+
+/** Tickets other people raised that include me as an owner (any response), newest first. */
+export async function fetchTicketsAssignedTo(userId: string, limit = 100): Promise<Task[]> {
+  const rows = check(
+    await supabase
+      .from('tasks')
+      .select(`${TASK_SELECT}, mine:task_assignments!inner(user_id)`)
+      .eq('bookmarks.is_bookmark', true)
+      .eq('mine.user_id', userId)
+      .not('requester_id', 'is', null)
+      .neq('requester_id', userId)
+      .order('created_at', { ascending: false })
+      .limit(limit),
+  ) as unknown as TaskRow[]
+  return rows.map(normalizeTask)
+}
+
+/** Every ticket the caller can see (admins: the whole team), newest first. */
+export async function fetchAllTickets(limit = 200): Promise<Task[]> {
+  const rows = check(
+    await taskQuery().not('requester_id', 'is', null).order('created_at', { ascending: false }).limit(limit),
   ) as unknown as TaskRow[]
   return rows.map(normalizeTask)
 }

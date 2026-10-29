@@ -60,19 +60,25 @@ export const CalendarView = forwardRef<CalendarHandle, Props>(function CalendarV
   const fc = useRef<FullCalendar>(null)
   const box = useRef<HTMLDivElement>(null)
 
-  // The grid only re-measures on window resize; also follow the container
-  // (e.g. when the task drawer opens beside it).
+  // The grid only re-measures on window resize; also follow the container (sidebar
+  // toggle, drawer). Re-measure once the size settles rather than on every frame of
+  // an animation — the browser reflows the grid's percentage columns in between.
   useEffect(() => {
     const el = box.current
     if (!el || typeof ResizeObserver === 'undefined') return
-    let frame = 0
+    let timer: ReturnType<typeof setTimeout> | undefined
+    let first = true
     const ro = new ResizeObserver(() => {
-      cancelAnimationFrame(frame)
-      frame = requestAnimationFrame(() => fc.current?.getApi().updateSize())
+      if (first) {
+        first = false
+        return
+      }
+      clearTimeout(timer)
+      timer = setTimeout(() => fc.current?.getApi().updateSize(), 90)
     })
     ro.observe(el)
     return () => {
-      cancelAnimationFrame(frame)
+      clearTimeout(timer)
       ro.disconnect()
     }
   }, [])

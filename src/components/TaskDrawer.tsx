@@ -75,6 +75,8 @@ export function TaskDrawer({ task, onClose, refreshTask, onCreateFollowUp, onOpe
   const { toast, confirm } = useFeedback()
   const now = useNow(30_000)
   const editable = canEdit(task, me)
+  // Requesters follow progress; the people doing the work update it.
+  const canWork = editable && me.role !== 'requester'
   const reschedulable = canReschedule(task, me)
   const state = displayState(task, me.user_id)
   const stale = needsUpdate(task, now)
@@ -252,7 +254,7 @@ export function TaskDrawer({ task, onClose, refreshTask, onCreateFollowUp, onOpe
   const body = (
     <>
       {/* Header */}
-      <div className="sticky top-0 z-10 border-b border-line bg-ivory/95 px-5 pt-4 pb-3 backdrop-blur">
+      <div className="sticky top-0 z-10 border-b border-line bg-ivory px-5 pt-4 pb-3">
         <div className="flex items-center gap-2">
           <span className={cx('chip', STATE_CHIP[state])}>{STATE_LABEL[state]}</span>
           {task.priority !== 'medium' ? (
@@ -321,7 +323,7 @@ export function TaskDrawer({ task, onClose, refreshTask, onCreateFollowUp, onOpe
       </div>
 
       <div className="space-y-6 px-5 py-5">
-        {stale && editable ? (
+        {stale && canWork ? (
           <section className="rounded-2xl border border-st-pending/20 bg-st-pending/[0.05] p-4">
             <p className="flex items-center gap-2 text-sm font-semibold text-st-pending">
               <AlertCircle size={16} /> Needs update
@@ -445,12 +447,12 @@ export function TaskDrawer({ task, onClose, refreshTask, onCreateFollowUp, onOpe
           </div>
           <ProgressControl
             value={task.progress_percent}
-            disabled={!editable || task.work_status === 'cancelled'}
+            disabled={!canWork || task.work_status === 'cancelled'}
             onCommit={(v) => void patch({ progress_percent: v })}
           />
         </section>
 
-        {editable && task.work_status !== 'cancelled' ? (
+        {canWork && task.work_status !== 'cancelled' ? (
           <section>
             <h3 className="section-title mb-2">Status</h3>
             <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-4">

@@ -180,8 +180,20 @@ export async function fetchPendingForMe(userId: string): Promise<Task[]> {
   )
 }
 
-export async function fetchMyRequests(userId: string): Promise<Task[]> {
-  return tasks(`t.requester_id = $1`, [userId], 'order by t.created_at desc limit 25')
+export async function fetchMyRequests(userId: string, limit = 25): Promise<Task[]> {
+  return tasks(`t.requester_id = $1`, [userId], `order by t.created_at desc limit ${Number(limit)}`)
+}
+
+export async function fetchTicketsAssignedTo(userId: string, limit = 100): Promise<Task[]> {
+  return tasks(
+    `t.requester_id is not null and t.requester_id <> $1 and exists (select 1 from public.task_assignments a where a.task_id = t.id and a.user_id = $1)`,
+    [userId],
+    `order by t.created_at desc limit ${Number(limit)}`,
+  )
+}
+
+export async function fetchAllTickets(limit = 200): Promise<Task[]> {
+  return tasks(`t.requester_id is not null`, [], `order by t.created_at desc limit ${Number(limit)}`)
 }
 
 export async function fetchRequestUpdates(userId: string): Promise<RequestUpdate[]> {

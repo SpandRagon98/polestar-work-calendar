@@ -194,17 +194,22 @@ export function Dialog({
         )}
         style={{ boxShadow: 'var(--shadow-pop)' }}
       >
-        <div className="flex items-start justify-between gap-4 border-b border-line px-6 pt-5 pb-4">
-          <div>
-            <h2 className="font-display text-lg font-bold text-ink">{title}</h2>
-            {description ? <p className="mt-0.5 text-sm text-ash">{description}</p> : null}
+        <div className="mx-auto mt-2.5 h-1 w-10 shrink-0 rounded-full bg-line-strong sm:hidden" aria-hidden />
+        <div className="flex items-start justify-between gap-4 border-b border-line px-6 pt-5 pb-4 sm:pt-6">
+          <div className="min-w-0 pt-0.5">
+            <h2 className="font-display text-lg leading-tight font-bold text-ink">{title}</h2>
+            {description ? <p className="mt-1 text-sm leading-relaxed text-ash">{description}</p> : null}
           </div>
-          <Button variant="ghost" size="icon" onClick={onClose} aria-label="Close">
+          <Button variant="ghost" size="icon" className="-mt-1 -mr-2" onClick={onClose} aria-label="Close">
             <X size={18} />
           </Button>
         </div>
-        <div className="flex-1 overflow-y-auto px-6 py-5">{children}</div>
-        {footer ? <div className="flex justify-end gap-2 border-t border-line bg-white/60 px-6 py-4">{footer}</div> : null}
+        <div className="flex-1 overflow-y-auto overscroll-contain px-6 py-6">{children}</div>
+        {footer ? (
+          <div className="flex items-center justify-end gap-2 border-t border-line bg-canvas/50 px-6 py-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
+            {footer}
+          </div>
+        ) : null}
       </div>
     </div>
   )
