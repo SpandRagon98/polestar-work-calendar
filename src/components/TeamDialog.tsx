@@ -415,6 +415,8 @@ function MotionSetting() {
     const fps = frames?.fps ?? 0
     const slowPct = Math.round((frames?.slowRatio ?? 1) * 100)
     const notes: string[] = []
+    if (prefersReducedMotion())
+      notes.push('Windows “Animation effects” is off (Settings → Accessibility → Visual effects), which is common on office laptops and remote desktops. Auto then uses gentle fades; choose Full here to get every animation anyway.')
     if (software) notes.push('The browser is drawing without graphics acceleration. Turn on “Use graphics acceleration when available” in browser settings (it may be disabled by IT).')
     if (scriptMs > 60) notes.push('Scripts run slowly here — often Edge “Enhanced security” or a security add-in. Ask IT to add this site as an exception, or use Lite.')
     if (!frames) notes.push('The window was hidden during the test; keep it in front and try again.')
@@ -454,11 +456,16 @@ function MotionSetting() {
         />
       </div>
       <p className="mt-1.5 text-xs leading-relaxed text-stone">
-        {pref === 'auto' ? `Auto is using ${level}${learnedLite() ? ' (learned from this device)' : ''}: ` : ''}
-        {MOTION_HINT[level]}
-        {pref === 'auto' && level === 'off' && prefersReducedMotion()
-          ? ' Your computer has animations turned off; choose Full to turn them on here.'
+        {pref === 'auto'
+          ? `Auto is using ${level}${
+              prefersReducedMotion()
+                ? ' because Windows animation effects are off'
+                : learnedLite()
+                  ? ' (learned from this device)'
+                  : ''
+            }: `
           : ''}
+        {MOTION_HINT[level]}
       </p>
 
       <div className="mt-3 rounded-2xl border border-line bg-white p-3.5">

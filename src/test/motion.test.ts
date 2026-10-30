@@ -17,10 +17,10 @@ describe('motion level', () => {
     expect(resolveMotion('full')).toBe('full')
   })
 
-  it('follows OS reduced motion in auto, but an explicit choice overrides it', () => {
+  it('uses gentle fades for OS reduced motion in auto, and an explicit choice overrides it', () => {
     vi.stubGlobal('window', { matchMedia: (q: string) => ({ matches: q.includes('reduce') }) as MediaQueryList })
     try {
-      expect(resolveMotion('auto')).toBe('off')
+      expect(resolveMotion('auto')).toBe('lite')
       expect(resolveMotion('full')).toBe('full')
       expect(resolveMotion('lite')).toBe('lite')
     } finally {

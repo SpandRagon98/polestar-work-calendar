@@ -370,7 +370,7 @@ export function Collapse({ open, children, className }: { open: boolean; childre
   return (
     <div
       className={cx(
-        'grid transition-[grid-template-rows,opacity] duration-200 ease-[cubic-bezier(0.2,0.8,0.2,1)] motion-reduce:transition-none',
+        'grid transition-[grid-template-rows,opacity] duration-200 ease-[cubic-bezier(0.2,0.8,0.2,1)]',
         open ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0',
       )}
       aria-hidden={!open}

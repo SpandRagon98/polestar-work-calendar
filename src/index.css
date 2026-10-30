@@ -272,7 +272,7 @@
   to { opacity: 1; }
 }
 /* Reduced motion is handled in src/lib/motion.ts: in Auto it resolves to
-   data-motion="off", and an explicit Full/Lite choice overrides it. */
+   data-motion="lite" (gentle fades), and an explicit choice overrides it. */
 
 /* Range input styled to match */
 input[type='range'].pw-range {
