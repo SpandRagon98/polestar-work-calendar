@@ -119,7 +119,7 @@ function TabBtn({ active, onClick, children }: { active: boolean; onClick: () =>
       aria-pressed={active}
       className={cx(
         'inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold transition-colors',
-        active ? 'bg-ink text-white' : 'text-ash hover:bg-canvas hover:text-ink',
+        active ? 'bg-rail text-white' : 'text-ash hover:bg-canvas hover:text-ink',
       )}
     >
       {children}

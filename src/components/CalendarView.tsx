@@ -1,4 +1,4 @@
-import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef } from 'react'
+import { forwardRef, useEffect, useImperativeHandle, useLayoutEffect, useMemo, useRef } from 'react'
 import FullCalendar from '@fullcalendar/react'
 import timeGridPlugin from '@fullcalendar/timegrid'
 import interactionPlugin from '@fullcalendar/interaction'
@@ -9,7 +9,9 @@ import type { Profile, Task } from '../lib/types'
 import { canReschedule } from '../lib/permissions'
 import { barToTimes, dayRowSelection, isMultiDay, shiftDate, shiftSlot, spanDates, stretchToDate, taskSessions, toZoned } from '../lib/time'
 import { EventContent } from './EventContent'
+import { createEventMotion } from '../lib/calendarMotion'
 import { motionLevel } from '../lib/motion'
+import { startStretchPreview } from '../lib/stretchPreview'
 
 export type CalendarViewName = 'timeGridDay' | 'timeGridWeek'
 
@@ -74,12 +76,25 @@ export async function persistMove(arg: MoveArg, save: Props['onReschedule'], zon
 /**
  * Left or right edge of a timed event: drag it sideways onto another day to make
  * the event span those days. Native listeners stop FullCalendar treating the press
- * as a move of the whole event; the columns in range are tinted while dragging.
+ * as a move of the whole event; a live preview shows the result while dragging.
  */
-function SpanHandle({ side, date, onDone }: { side: 'left' | 'right'; date: string; onDone: (date: string) => void }) {
+function SpanHandle({
+  side,
+  first,
+  last,
+  taskId,
+  onDone,
+}: {
+  side: 'left' | 'right'
+  first: string
+  last: string
+  taskId: string
+  onDone: (date: string) => Promise<unknown>
+}) {
   const el = useRef<HTMLSpanElement>(null)
   const done = useRef(onDone)
   done.current = onDone
+  const edge = side === 'left' ? first : last
 
   useEffect(() => {
     const node = el.current
@@ -90,35 +105,42 @@ function SpanHandle({ side, date, onDone }: { side: 'left' | 'right'; date: stri
         .elementsFromPoint(x, y)
         .find((n) => n.matches('.fc-timegrid-col[data-date]'))
         ?.getAttribute('data-date') ?? null
-    const paint = (hover: string | null) => {
-      document.querySelectorAll<HTMLElement>('.fc-timegrid-col[data-date]').forEach((c) => {
-        const d = c.dataset.date!
-        const inRange = hover !== null && d >= (hover < date ? hover : date) && d <= (hover > date ? hover : date)
-        c.classList.toggle('pw-span-preview', inRange)
-      })
-    }
     const onDown = (e: PointerEvent) => {
       e.stopPropagation()
       e.preventDefault()
       node.setPointerCapture(e.pointerId)
-      let hover: string | null = date
+      const preview = startStretchPreview(node.closest<HTMLElement>('.fc-event'), side, first, last, taskId)
+      let hover = edge
       const onMove = (m: PointerEvent) => {
         const next = columnAt(m.clientX, m.clientY)
         if (next && next !== hover) {
           hover = next
-          paint(hover)
+          preview.update(hover)
         }
       }
-      const finish = (u: PointerEvent) => {
+      const cleanUp = () => {
         node.removeEventListener('pointermove', onMove)
-        node.removeEventListener('pointerup', finish)
-        node.removeEventListener('pointercancel', finish)
-        paint(null)
-        if (u.type === 'pointerup' && hover && hover !== date) done.current(hover)
+        node.removeEventListener('pointerup', onUp)
+        node.removeEventListener('pointercancel', onCancel)
+        node.removeEventListener('lostpointercapture', onCancel)
+        window.removeEventListener('keydown', onKey)
+      }
+      const onUp = () => {
+        cleanUp()
+        preview.finish(hover !== edge ? done.current(hover) : undefined)
+      }
+      const onCancel = () => {
+        cleanUp()
+        preview.finish()
+      }
+      const onKey = (k: KeyboardEvent) => {
+        if (k.key === 'Escape') onCancel()
       }
       node.addEventListener('pointermove', onMove)
-      node.addEventListener('pointerup', finish)
-      node.addEventListener('pointercancel', finish)
+      node.addEventListener('pointerup', onUp)
+      node.addEventListener('pointercancel', onCancel)
+      node.addEventListener('lostpointercapture', onCancel)
+      window.addEventListener('keydown', onKey)
     }
     node.addEventListener('pointerdown', onDown)
     node.addEventListener('mousedown', stop)
@@ -130,7 +152,7 @@ function SpanHandle({ side, date, onDone }: { side: 'left' | 'right'; date: stri
       node.removeEventListener('touchstart', stop)
       node.removeEventListener('click', stop)
     }
-  }, [date])
+  }, [side, first, last, taskId, edge])
 
   return <span ref={el} aria-hidden title="Drag sideways to span more days" className={`pw-span-handle pw-span-handle-${side}`} />
 }
@@ -154,7 +176,7 @@ export const CalendarView = forwardRef<CalendarHandle, Props>(function CalendarV
         return
       }
       clearTimeout(timer)
-      timer = setTimeout(() => fc.current?.getApi().updateSize(), 90)
+      timer = setTimeout(() => fc.current?.getApi().updateSize(), 280)
     })
     ro.observe(el)
     return () => {
@@ -167,21 +189,17 @@ export const CalendarView = forwardRef<CalendarHandle, Props>(function CalendarV
   latest.current = props
 
   // ── Motion ──────────────────────────────────────────────────────────────
-  // Navigation glides in the direction of travel; events added while you're
-  // looking (yours or a teammate's, via Realtime) fade into place. Both use the
-  // Web Animations API with transform/opacity only, so they run on the compositor.
+  // Navigation glides in the direction of travel (whole grid, so full motion only).
+  // Events glide, appear and disappear through calendarMotion, whoever changed them.
   const navDir = useRef<'next' | 'prev' | 'fade' | null>(null)
-  const lastNav = useRef(0)
-  const knownIds = useRef(new Set<string>())
-  // Glides and fade-ins move the whole grid: only with full motion.
-  const reduced = () => motionLevel() !== 'full'
+  const motion = useMemo(() => createEventMotion(() => box.current?.querySelector<HTMLElement>('.fc-view-harness')), [])
 
   const animateNav = () => {
     const dir = navDir.current
     navDir.current = null
-    lastNav.current = performance.now()
+    motion.noteNavigation()
     const view = box.current?.querySelector<HTMLElement>('.fc-view-harness')
-    if (!dir || !view || reduced() || !view.animate) return
+    if (!dir || !view || motionLevel() !== 'full' || !view.animate) return
     const x = dir === 'next' ? 16 : dir === 'prev' ? -16 : 0
     view.animate(
       [
@@ -246,11 +264,33 @@ export const CalendarView = forwardRef<CalendarHandle, Props>(function CalendarV
     [tasks, me, zone],
   )
 
-  const onMove = (arg: EventDropArg | EventResizeDoneArg) => persistMove(arg, latest.current.onReschedule, latest.current.zone)
+  // Measure events just before the new list reaches FullCalendar, then play once it has.
+  const lastEvents = useRef(events)
+  if (lastEvents.current !== events) {
+    lastEvents.current = events
+    motion.capture()
+  }
+  useLayoutEffect(() => {
+    motion.play(false)
+    const id = requestAnimationFrame(() => motion.play(true))
+    return () => cancelAnimationFrame(id)
+  }, [events, motion])
 
-  const stretch = (task: Task, side: 'left' | 'right', date: string) => {
+  const onMove = async (arg: EventDropArg | EventResizeDoneArg) => {
+    const taskId = (arg.event.extendedProps.task as Task | undefined)?.id
+    if (taskId) motion.settle(taskId)
+    const saved = await persistMove(arg, latest.current.onReschedule, latest.current.zone)
+    if (!saved && taskId) requestAnimationFrame(() => motion.shake(taskId))
+  }
+
+  const stretch = async (task: Task, side: 'left' | 'right', date: string) => {
     const t = stretchToDate(task.start_at, task.end_at, latest.current.zone, side, date)
-    latest.current.onReschedule(task, new Date(t.start_at), new Date(t.end_at)).catch(() => undefined) // already reported
+    motion.settle(task.id)
+    try {
+      await latest.current.onReschedule(task, new Date(t.start_at), new Date(t.end_at))
+    } catch {
+      motion.shake(task.id) // the error is already reported
+    }
   }
 
   return (
@@ -314,18 +354,9 @@ export const CalendarView = forwardRef<CalendarHandle, Props>(function CalendarV
         const task = arg.event.extendedProps.task as Task | undefined
         if (!task) return
         const el = arg.el
-        // A task that just appeared (not on a page change or first load) fades in.
-        const isNew = knownIds.current.size > 0 && !knownIds.current.has(task.id)
-        knownIds.current.add(task.id)
-        if (isNew && performance.now() - lastNav.current > 700 && !reduced() && el.animate) {
-          el.animate(
-            [
-              { opacity: 0, transform: 'scale(0.96)' },
-              { opacity: 1, transform: 'scale(1)' },
-            ],
-            { duration: 260, easing: 'cubic-bezier(0.2, 0.8, 0.2, 1)' },
-          )
-        }
+        if (arg.isMirror) return
+        el.dataset.eid = arg.event.id
+        motion.register(arg.event.id, el)
         el.tabIndex = 0
         el.setAttribute('role', 'button')
         el.onkeydown = (e) => {
@@ -334,6 +365,9 @@ export const CalendarView = forwardRef<CalendarHandle, Props>(function CalendarV
             latest.current.onOpenTask(task.id)
           }
         }
+      }}
+      eventWillUnmount={(arg: EventMountArg) => {
+        if (!arg.isMirror) motion.unregister(arg.event.id, arg.el)
       }}
       eventContent={(arg) => {
         const task = arg.event.extendedProps.task as Task | undefined
@@ -360,8 +394,8 @@ export const CalendarView = forwardRef<CalendarHandle, Props>(function CalendarV
             handles={
               stretchable ? (
                 <>
-                  {!slotDate || slotDate === date.first ? <SpanHandle side="left" date={date.first} onDone={(d) => stretch(task, 'left', d)} /> : null}
-                  {!slotDate || slotDate === date.last ? <SpanHandle side="right" date={date.last} onDone={(d) => stretch(task, 'right', d)} /> : null}
+                  {!slotDate || slotDate === date.first ? <SpanHandle side="left" first={date.first} last={date.last} taskId={task.id} onDone={(d) => stretch(task, 'left', d)} /> : null}
+                  {!slotDate || slotDate === date.last ? <SpanHandle side="right" first={date.first} last={date.last} taskId={task.id} onDone={(d) => stretch(task, 'right', d)} /> : null}
                 </>
               ) : null
             }

@@ -72,7 +72,7 @@ export function ProgressControl({ value, disabled, onCommit }: Props) {
             disabled={disabled || (d < 0 ? value === 0 : value === 100)}
             onClick={() => commit(value + d)}
             className={cx(
-              'inline-flex h-7 items-center gap-0.5 rounded-lg border border-line bg-white px-2 text-xs font-medium text-ash',
+              'inline-flex h-7 items-center gap-0.5 rounded-lg border border-line bg-surface px-2 text-xs font-medium text-ash',
               'hover:border-stone hover:text-ink disabled:opacity-40',
             )}
           >
@@ -86,7 +86,7 @@ export function ProgressControl({ value, disabled, onCommit }: Props) {
             type="button"
             disabled={disabled || value === v}
             onClick={() => commit(v)}
-            className="h-7 rounded-lg border border-line bg-white px-2 text-xs font-medium text-ash hover:border-stone hover:text-ink disabled:opacity-40"
+            className="h-7 rounded-lg border border-line bg-surface px-2 text-xs font-medium text-ash hover:border-stone hover:text-ink disabled:opacity-40"
           >
             {v}%
           </button>

@@ -276,7 +276,7 @@ export function CalendarPage() {
           {error ? (
             <div
               role="alert"
-              className="absolute inset-x-4 top-4 z-10 flex items-center gap-3 rounded-xl border border-st-pending/20 bg-white px-4 py-3 text-sm text-st-pending shadow"
+              className="absolute inset-x-4 top-4 z-10 flex items-center gap-3 rounded-xl border border-st-pending/20 bg-surface px-4 py-3 text-sm text-st-pending shadow"
             >
               <span className="flex-1">Couldn’t load tasks: {error}</span>
               <Button size="sm" onClick={() => void reload()}>
@@ -285,13 +285,13 @@ export function CalendarPage() {
             </div>
           ) : null}
           {loading && all.length === 0 ? (
-            <div className="pointer-events-none absolute top-3 right-4 z-10 flex items-center gap-2 rounded-full bg-white/90 px-3 py-1 text-xs text-ash shadow-sm">
+            <div className="pointer-events-none absolute top-3 right-4 z-10 flex items-center gap-2 rounded-full bg-surface/90 px-3 py-1 text-xs text-ash shadow-sm">
               <span className="h-2 w-2 animate-pulse rounded-full bg-apricot" /> Loading tasks…
             </div>
           ) : null}
           {!loading && !error && visibleTasks.length === 0 ? (
             <div className="pointer-events-none absolute inset-x-0 bottom-6 z-10 flex justify-center px-4">
-              <p className="rounded-full bg-white/95 px-4 py-2 text-center text-xs text-ash shadow">
+              <p className="rounded-full bg-surface/95 px-4 py-2 text-center text-xs text-ash shadow">
                 {all.length === 0
                   ? isMobile
                     ? 'Nothing scheduled. Tap + or long-press a time to add a task.'
@@ -339,6 +339,7 @@ export function CalendarPage() {
           task={drawerTask}
           onClose={() => setOpenId(null)}
           refreshTask={refresh}
+          onManyChanged={() => void reload()}
           onCreateFollowUp={followUp}
           onOpenTask={(id) => void openTask(id)}
         />
@@ -359,5 +360,5 @@ export function CalendarPage() {
 }
 
 function SummaryChip({ children, tone }: { children: React.ReactNode; tone?: string }) {
-  return <span className={cx('rounded-full bg-white px-2 py-0.5 font-medium ring-1 ring-line', tone)}>{children}</span>
+  return <span className={cx('rounded-full bg-surface px-2 py-0.5 font-medium ring-1 ring-line', tone)}>{children}</span>
 }

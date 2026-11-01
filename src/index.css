@@ -21,6 +21,9 @@
   --color-peach-100: #f6e6dc;
   --color-line: #ece6e2;
   --color-line-strong: #ddd3cd;
+  --color-surface: #ffffff;
+  --color-rail: #250b0b;
+  --color-warn: #9a5a14;
 
   --color-st-scheduled: #8a8582;
   --color-st-progress: #d9822b;
@@ -28,11 +31,61 @@
   --color-st-pending: #cf3a2a;
   --color-st-awaiting: #7b5cc4;
 
-  --shadow-card: 0 1px 2px rgb(37 11 11 / 0.04), 0 4px 16px rgb(37 11 11 / 0.05);
-  --shadow-pop: 0 8px 28px rgb(37 11 11 / 0.13), 0 2px 6px rgb(37 11 11 / 0.06);
+  --shadow-card: 0 1px 2px color-mix(in srgb, var(--color-rail) 4%, transparent), 0 4px 16px color-mix(in srgb, var(--color-rail) 5%, transparent);
+  --shadow-pop: 0 8px 28px color-mix(in srgb, var(--color-rail) 13%, transparent), 0 2px 6px color-mix(in srgb, var(--color-rail) 6%, transparent);
 
   --radius-xl: 14px;
   --radius-2xl: 20px;
+}
+
+/* ── Colour themes (<html data-theme>, see src/lib/theme.ts) ───────────────── */
+[data-theme='ocean'] {
+  --color-canvas: #f2f6f8; --color-ink: #0b1f33; --color-rail: #0b1f33; --color-maroon: #0d4a73; --color-maroon-600: #125c8c;
+  --color-ember: #0a6f9e; --color-stone: #84929a; --color-ash: #56646c; --color-apricot: #f0b35a; --color-peach: #a9cfe3;
+  --color-peach-50: #eef6fb; --color-peach-100: #dcecf6; --color-line: #e1e8ec; --color-line-strong: #cdd8de;
+}
+[data-theme='forest'] {
+  --color-canvas: #f3f6f2; --color-ink: #0f2419; --color-rail: #0f2419; --color-maroon: #14533a; --color-maroon-600: #1a6648;
+  --color-ember: #1b7048; --color-stone: #87918a; --color-ash: #59645c; --color-apricot: #e3b34f; --color-peach: #b5d5b9;
+  --color-peach-50: #eff7f0; --color-peach-100: #dcecdf; --color-line: #e3e9e2; --color-line-strong: #cfd9ce;
+}
+[data-theme='plum'] {
+  --color-canvas: #f6f3f8; --color-ink: #211030; --color-rail: #211030; --color-maroon: #4b1a78; --color-maroon-600: #5c2391;
+  --color-ember: #7f28b5; --color-stone: #8d8794; --color-ash: #625c69; --color-apricot: #f0a9c0; --color-peach: #d6bce8;
+  --color-peach-50: #f6f0fb; --color-peach-100: #ebdff6; --color-line: #e9e3ee; --color-line-strong: #d8cfe0;
+}
+[data-theme='rose'] {
+  --color-canvas: #fbf5f7; --color-ink: #2c0b1d; --color-rail: #2c0b1d; --color-maroon: #9d174d; --color-maroon-600: #b01c58;
+  --color-ember: #c0185f; --color-stone: #93868c; --color-ash: #685c62; --color-apricot: #fbbf77; --color-peach: #f5bfd3;
+  --color-peach-50: #fdf1f6; --color-peach-100: #fbe1ec; --color-line: #f1e4e9; --color-line-strong: #e3d1d9;
+}
+[data-theme='graphite'] {
+  --color-canvas: #f4f5f6; --color-ink: #16191d; --color-rail: #16191d; --color-maroon: #2b3038; --color-maroon-600: #3a4049;
+  --color-ember: #b94f08; --color-stone: #898c90; --color-ash: #5c6065; --color-apricot: #f59e42; --color-peach: #cfd4da;
+  --color-peach-50: #f3f4f6; --color-peach-100: #e6e8eb; --color-line: #e6e8ea; --color-line-strong: #d3d6da;
+}
+[data-theme='midnight'] {
+  --color-ivory: #181a24; --color-canvas: #11131b; --color-surface: #20222e; --color-ink: #eceef6; --color-rail: #0c0e16;
+  --color-maroon: #6472f0; --color-maroon-600: #7682f5; --color-ember: #98a3ff; --color-stone: #8b8e9e; --color-ash: #b1b4c4;
+  --color-apricot: #f0b35a; --color-peach: #8d95d9; --color-peach-50: #252842; --color-peach-100: #2f3354;
+  --color-line: #2b2e3c; --color-line-strong: #3c3f50; --color-warn: #f0b35a;
+}
+[data-theme='espresso'] {
+  --color-ivory: #211714; --color-canvas: #18100e; --color-surface: #2b1f1b; --color-ink: #f3e9e3; --color-rail: #120a09;
+  --color-maroon: #b5432f; --color-maroon-600: #c5523d; --color-ember: #ef8a6f; --color-stone: #9a8a82; --color-ash: #c4b4ab;
+  --color-apricot: #e8a35c; --color-peach: #b98a72; --color-peach-50: #36241e; --color-peach-100: #432d25;
+  --color-line: #3a2b26; --color-line-strong: #4d3b34; --color-warn: #e8a35c;
+}
+[data-tone='dark'] {
+  color-scheme: dark;
+  --shadow-card: 0 1px 3px rgb(0 0 0 / 0.3);
+  --shadow-pop: 0 10px 30px rgb(0 0 0 / 0.5);
+}
+/* The logo has dark lettering: dark themes sit it on a small white plate. */
+[data-tone='dark'] .pw-logo {
+  border-radius: 6px;
+  background: #fff;
+  padding: 2px 4px;
 }
 
 @layer base {
@@ -77,7 +130,7 @@
     box-shadow: var(--shadow-card);
   }
   .field {
-    @apply w-full rounded-xl border border-line-strong bg-white px-3 py-2 text-sm text-ink placeholder:text-stone transition-colors;
+    @apply w-full rounded-xl border border-line-strong bg-surface px-3 py-2 text-sm text-ink placeholder:text-stone transition-colors;
     @apply focus:border-ember focus:outline-none focus:ring-2 focus:ring-ember/15;
   }
   .label {
@@ -96,9 +149,9 @@
   --fc-border-color: var(--color-line);
   --fc-page-bg-color: var(--color-ivory);
   --fc-neutral-bg-color: var(--color-canvas);
-  --fc-today-bg-color: rgb(229 182 156 / 0.12);
+  --fc-today-bg-color: color-mix(in srgb, var(--color-peach) 12%, transparent);
   --fc-now-indicator-color: var(--color-ember);
-  --fc-highlight-color: rgb(175 31 10 / 0.09);
+  --fc-highlight-color: color-mix(in srgb, var(--color-ember) 9%, transparent);
   --fc-event-border-color: transparent;
   font-size: 13px;
 }
@@ -121,7 +174,7 @@
 }
 .fc .fc-timegrid-slot-minor {
   border-top-style: dotted;
-  border-top-color: rgb(236 230 226 / 0.6);
+  border-top-color: color-mix(in srgb, var(--color-line) 60%, transparent);
 }
 .fc .fc-timegrid-slot-label-cushion,
 .fc .fc-timegrid-axis-cushion {
@@ -140,7 +193,7 @@
 }
 .fc .fc-day-sat,
 .fc .fc-day-sun {
-  background-color: rgb(247 244 242 / 0.6);
+  background-color: color-mix(in srgb, var(--color-canvas) 60%, transparent);
 }
 .fc .fc-highlight {
   border-radius: 8px;
@@ -159,7 +212,7 @@
   background: transparent;
   overflow: hidden;
   cursor: pointer;
-  transition: transform 0.18s cubic-bezier(0.2, 0.8, 0.2, 1);
+  transition: transform 0.2s var(--ease-out), opacity 0.15s ease;
 }
 /* Grab anywhere to move; the bottom edge keeps its own resize cursor. */
 .fc .fc-event.pw-event.pw-movable {
@@ -169,7 +222,7 @@
   cursor: grabbing;
 }
 .fc .fc-event.pw-event:hover {
-  box-shadow: 0 4px 12px rgb(37 11 11 / 0.12);
+  box-shadow: 0 6px 16px color-mix(in srgb, var(--color-rail) 16%, transparent);
   transform: translateY(-1px);
 }
 .fc .fc-event.pw-event:active {
@@ -179,12 +232,20 @@
 /* Dragging / resizing: the moving copy lifts off the grid. */
 .fc .fc-event.fc-event-mirror,
 .fc .fc-event.fc-event-dragging {
-  box-shadow: 0 14px 34px rgb(37 11 11 / 0.22);
+  box-shadow: 0 14px 34px color-mix(in srgb, var(--color-rail) 24%, transparent);
   transform: scale(1.02);
   transition: none;
 }
 .fc .fc-event-resizing {
-  box-shadow: 0 10px 26px rgb(37 11 11 / 0.18);
+  box-shadow: 0 10px 26px color-mix(in srgb, var(--color-rail) 20%, transparent);
+}
+/* The copy left behind while dragging. */
+.fc .fc-event.fc-event-dragging:not(.fc-event-mirror) {
+  opacity: 0.35;
+}
+/* The dragged copy glides between half-hour steps instead of jumping. */
+.fc .fc-timegrid-event-harness:has(> .fc-event-mirror) {
+  transition: top 0.09s ease-out, bottom 0.09s ease-out;
 }
 /* Selecting a time range: highlight eases in. */
 .fc .fc-highlight {
@@ -205,7 +266,7 @@
   height: 100%;
   border-left: 3px solid var(--st);
   border-radius: 9px;
-  background: color-mix(in srgb, var(--st) 11%, white);
+  background: color-mix(in srgb, var(--st) 13%, var(--color-surface));
   color: var(--color-ink);
 }
 .pw-st-scheduled { --st: var(--color-st-scheduled); }
@@ -218,8 +279,8 @@
   --st: var(--color-st-awaiting);
   background:
     repeating-linear-gradient(135deg, rgb(123 92 196 / 0.07) 0 6px, transparent 6px 12px),
-    color-mix(in srgb, var(--st) 9%, white);
-  outline: 1.5px dashed color-mix(in srgb, var(--st) 55%, white);
+    color-mix(in srgb, var(--st) 9%, var(--color-surface));
+  outline: 1.5px dashed color-mix(in srgb, var(--st) 55%, var(--color-surface));
   outline-offset: -1.5px;
 }
 .pw-st-cancelled .pw-event-title {
@@ -230,34 +291,83 @@
   opacity: 0.85;
 }
 
-/* Small entrance animations */
+/* ── Animations ─────────────────────────────────────────────────────────────
+   Only transform and opacity, so they run off the main thread. */
+:root {
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --ease-soft-spring: cubic-bezier(0.34, 1.25, 0.64, 1);
+}
 @keyframes pw-fade-in {
   from { opacity: 0; }
   to { opacity: 1; }
 }
 @keyframes pw-slide-in {
-  from { transform: translateX(24px); opacity: 0; }
+  from { transform: translateX(36px); opacity: 0; }
   to { transform: translateX(0); opacity: 1; }
 }
 @keyframes pw-rise {
-  from { transform: translateY(24px); opacity: 0; }
-  to { transform: translateY(0); opacity: 1; }
-}
-@keyframes pw-pop {
-  from { transform: translateY(4px) scale(0.98); opacity: 0; }
+  from { transform: translateY(20px) scale(0.97); opacity: 0; }
   to { transform: none; opacity: 1; }
 }
-.anim-fade { animation: pw-fade-in 0.18s ease-out; }
-.anim-slide { animation: pw-slide-in 0.22s cubic-bezier(0.2, 0.8, 0.2, 1); }
-.anim-rise { animation: pw-rise 0.24s cubic-bezier(0.2, 0.8, 0.2, 1); }
-.anim-pop { animation: pw-pop 0.16s ease-out; }
+@keyframes pw-pop {
+  from { transform: translateY(-6px) scale(0.95); opacity: 0; }
+  to { transform: none; opacity: 1; }
+}
+@keyframes pw-toast {
+  from { transform: translateX(32px) scale(0.96); opacity: 0; }
+  to { transform: none; opacity: 1; }
+}
+@keyframes pw-item {
+  from { transform: translateY(10px); opacity: 0; }
+  to { transform: none; opacity: 1; }
+}
+@keyframes pw-badge {
+  from { transform: scale(0); }
+  to { transform: scale(1); }
+}
+@keyframes pw-bar {
+  from { transform: scaleY(0); }
+  to { transform: scaleY(1); }
+}
+.anim-fade { animation: pw-fade-in 0.2s ease-out; }
+.anim-slide { animation: pw-slide-in 0.32s var(--ease-out); }
+.anim-rise { animation: pw-rise 0.34s var(--ease-out); }
+.anim-pop { animation: pw-pop 0.22s var(--ease-soft-spring); }
+.anim-toast { animation: pw-toast 0.36s var(--ease-soft-spring); }
+.anim-badge { animation: pw-badge 0.3s var(--ease-spring); }
+.anim-bar { animation: pw-bar 0.28s var(--ease-soft-spring); }
 /* Exits: shorter than entrances, ease-in, and they keep their end state. */
 .anim-fade-out { animation: pw-fade-in 0.17s ease-in reverse forwards; }
 .anim-rise-out { animation: pw-rise 0.17s ease-in reverse forwards; }
 .anim-slide-out { animation: pw-slide-in 0.17s ease-in reverse forwards; }
 .anim-pop-out { animation: pw-pop 0.13s ease-in reverse forwards; }
-.anim-page { animation: pw-page 0.22s cubic-bezier(0.2, 0.8, 0.2, 1); }
+.anim-toast-out { animation: pw-toast 0.17s ease-in reverse forwards; }
+.anim-page { animation: pw-page 0.28s var(--ease-out); }
 .anim-slide, .anim-rise, .anim-slide-out, .anim-rise-out { will-change: transform, opacity; }
+/* Sections of a panel and rows of a list arrive one after another. */
+.anim-stagger > * { animation: pw-item 0.36s var(--ease-out) backwards; }
+.anim-stagger > :nth-child(2) { animation-delay: 0.03s; }
+.anim-stagger > :nth-child(3) { animation-delay: 0.06s; }
+.anim-stagger > :nth-child(4) { animation-delay: 0.09s; }
+.anim-stagger > :nth-child(5) { animation-delay: 0.12s; }
+.anim-stagger > :nth-child(6) { animation-delay: 0.15s; }
+.anim-stagger > :nth-child(n + 7) { animation-delay: 0.18s; }
+/* Sidebar collapsing: a strip of rail stays while the page slides over it. */
+.pw-rail-strip::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 100%;
+  width: 160px;
+  background: var(--color-rail);
+}
+.pw-page-over {
+  position: relative;
+  z-index: 40;
+  background: var(--color-canvas);
+}
 @keyframes pw-page {
   from { opacity: 0; transform: translateY(6px); }
   to { opacity: 1; transform: none; }
@@ -293,16 +403,16 @@ input[type='range'].pw-range::-webkit-slider-thumb {
   width: 18px;
   height: 18px;
   border-radius: 999px;
-  background: white;
+  background: var(--color-surface);
   border: 2px solid var(--color-maroon);
-  box-shadow: 0 1px 4px rgb(37 11 11 / 0.2);
+  box-shadow: 0 1px 4px color-mix(in srgb, var(--color-rail) 20%, transparent);
   cursor: pointer;
 }
 input[type='range'].pw-range::-moz-range-thumb {
   width: 16px;
   height: 16px;
   border-radius: 999px;
-  background: white;
+  background: var(--color-surface);
   border: 2px solid var(--color-maroon);
   cursor: pointer;
 }
@@ -363,8 +473,8 @@ input[type='range'].pw-range::-moz-range-thumb {
   width: 3px;
   height: 14px;
   border-radius: 999px;
-  background: var(--color-maroon);
-  opacity: 0.55;
+  background: var(--color-ember);
+  opacity: 0.6;
   transform: translate(-50%, -50%);
 }
 .pw-span-handle {
@@ -376,7 +486,10 @@ input[type='range'].pw-range::-moz-range-thumb {
   cursor: ew-resize;
   opacity: 0;
   touch-action: none;
-  transition: opacity 0.12s ease;
+  transition: opacity 0.15s ease, transform 0.15s var(--ease-out);
+}
+.pw-span-handle:hover {
+  transform: scaleY(1.15);
 }
 .pw-span-handle-left {
   left: 0;
@@ -387,50 +500,89 @@ input[type='range'].pw-range::-moz-range-thumb {
 .fc-event:hover .pw-span-handle {
   opacity: 1;
 }
+.fc .fc-timegrid-col {
+  transition: background-color 0.18s ease;
+}
 .fc .fc-timegrid-col.pw-span-preview {
-  background-color: rgb(175 31 10 / 0.09);
+  background-color: color-mix(in srgb, var(--color-ember) 7%, transparent);
+}
+/* Stretching across days: see src/lib/stretchPreview.ts */
+.pw-stretch-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  pointer-events: none;
+}
+.pw-stretch-ghost {
+  position: absolute;
+  overflow: hidden;
+  border-radius: 9px;
+  outline: 1.5px dashed color-mix(in srgb, var(--color-ember) 55%, transparent);
+  outline-offset: -1.5px;
+  box-shadow: 0 6px 16px color-mix(in srgb, var(--color-rail) 14%, transparent);
+}
+.pw-stretch-label {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 1;
+  border-radius: 999px;
+  background: var(--color-rail);
+  padding: 4px 10px;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+  opacity: 0;
+  transition: transform 0.2s var(--ease-out), opacity 0.12s ease;
+}
+.pw-stretch-label.pw-on {
+  opacity: 1;
+}
+.fc .fc-event.pw-event.pw-slot-dropping {
+  opacity: 0.25;
 }
 
 /* ── Motion levels (set on <html data-motion>, see src/lib/motion.ts) ─────────
-   lite: for machines drawing without the graphics processor. Keep quick fades
-   (cheap), drop slides, scaling, lifting, glides and animated shadows. */
+   lite: plays on any laptop. Small things still move, only faster. Large areas
+   (dialogs, panels, pages) fade rather than move, there is no staggering, and
+   soft shadows are simpler. */
 [data-motion='lite'] {
-  --shadow-pop: 0 4px 14px rgb(37 11 11 / 0.14);
-  --shadow-card: 0 1px 3px rgb(37 11 11 / 0.06);
+  --shadow-pop: 0 4px 14px color-mix(in srgb, var(--color-rail) 14%, transparent);
+  --shadow-card: 0 1px 3px color-mix(in srgb, var(--color-rail) 6%, transparent);
 }
 [data-motion='lite'] .anim-slide,
 [data-motion='lite'] .anim-rise,
-[data-motion='lite'] .anim-pop,
 [data-motion='lite'] .anim-page,
 [data-motion='lite'] .anim-fade {
-  animation: pw-fade-in 0.12s ease-out;
+  animation: pw-fade-in 0.14s ease-out;
   will-change: auto;
 }
 [data-motion='lite'] .anim-slide-out,
 [data-motion='lite'] .anim-rise-out,
-[data-motion='lite'] .anim-pop-out,
 [data-motion='lite'] .anim-fade-out {
   animation: pw-fade-in 0.1s ease-in reverse forwards;
   will-change: auto;
 }
+[data-motion='lite'] .anim-pop { animation-duration: 0.13s; }
+[data-motion='lite'] .anim-pop-out { animation-duration: 0.1s; }
+[data-motion='lite'] .anim-toast { animation-duration: 0.18s; }
+[data-motion='lite'] .anim-toast-out { animation-duration: 0.12s; }
+[data-motion='lite'] .anim-stagger > * {
+  animation: none;
+}
 [data-motion='lite'] *,
 [data-motion='lite'] *::before,
 [data-motion='lite'] *::after {
-  transition-property: color, background-color, border-color, opacity !important;
+  transition-property: color, background-color, border-color, opacity, transform, scale !important;
   transition-duration: 0.12s !important;
 }
-[data-motion='lite'] :active {
-  scale: none !important;
-}
 [data-motion='lite'] .fc .fc-event.pw-event:hover,
-[data-motion='lite'] .fc .fc-event.pw-event:active,
 [data-motion='lite'] .fc .fc-event.fc-event-mirror,
 [data-motion='lite'] .fc .fc-event.fc-event-dragging {
-  transform: none;
+  box-shadow: none;
 }
-[data-motion='lite'] .fc .fc-highlight {
-  animation: none;
-}
+[data-motion='lite'] .fc .fc-highlight,
 [data-motion='lite'] .skeleton {
   animation: none;
 }

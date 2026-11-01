@@ -53,6 +53,11 @@ export async function createTaskSeries(input: TaskInput, occurrences: { start_at
   return check(await supabase.rpc('create_task_series', { p: { ...input, occurrences } })) as string[]
 }
 
+/** Repeat an existing event on later dates; it becomes the first date of the series. */
+export async function repeatTask(id: string, version: number, occurrences: { start_at: string; end_at: string }[]): Promise<string[]> {
+  return check(await supabase.rpc('repeat_task', { p_id: id, p_version: version, p_occurrences: occurrences })) as string[]
+}
+
 /** Answer all of my pending occurrences in a series. Returns how many were answered. */
 export async function respondToSeries(seriesId: string, response: 'accept' | 'decline', note?: string): Promise<number> {
   return check(await supabase.rpc('respond_series', { p_series: seriesId, p_response: response, p_note: note ?? null })) as number

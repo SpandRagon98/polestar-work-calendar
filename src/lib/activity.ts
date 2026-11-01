@@ -19,6 +19,7 @@ export const ACTIVITY_LABEL: Record<string, string> = {
   time_suggested: 'Suggested another time',
   request_confirmed: 'Request confirmed by all owners',
   request_needs_revision: 'Request needs revision',
+  series_created: 'Set to repeat',
   bookmark: 'Progress note',
 }
 

@@ -2,15 +2,17 @@
 // with the graphics processor and running scripts quickly; on locked-down or
 // low-powered machines (graphics acceleration off, Edge "enhanced security" which
 // disables the JavaScript JIT, remote desktops) slides, scaling and soft shadows
-// stutter. "Lite" keeps short opacity fades and drops the expensive effects.
+// stutter when large areas move. "Lite" still animates everything small (events on
+// the calendar, stretching, menus, messages), only faster, and fades large areas
+// (dialogs, panels, pages) instead of moving them, so it can play on any laptop.
 //
 //   full — every animation
-//   lite — quick fades only: no slides, scaling, lifting or calendar glides
+//   lite — small things move, large things fade; no soft shadows or staggering
 //   off  — no animation
 //
-// "Auto" follows the OS reduced-motion setting by using Lite (fades only) (Windows: Settings › Accessibility ›
-// Visual effects › Animation effects). An explicit choice overrides it, so someone
-// whose machine has animations turned off can still opt back in.
+// "Auto" uses Lite when the OS asks for reduced motion (Windows: Settings ›
+// Accessibility › Visual effects › Animation effects). An explicit choice overrides
+// it, so someone whose machine has animations turned off can still opt back in.
 //
 // With "auto" the app starts from what it can detect up front, then keeps
 // measuring real animations and settles on Lite if this device keeps dropping

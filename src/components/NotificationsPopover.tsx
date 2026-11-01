@@ -204,7 +204,7 @@ function DesktopAlertsRow() {
 
 function Badge({ n }: { n: number }) {
   return (
-    <span className="absolute -top-1 -right-1 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-ember px-1 text-[10px] font-bold text-white ring-2 ring-ivory">
+    <span key={n} className="anim-badge absolute -top-1 -right-1 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-ember px-1 text-[10px] font-bold text-white ring-2 ring-ivory">
       {n > 9 ? '9+' : n}
     </span>
   )

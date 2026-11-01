@@ -74,8 +74,8 @@ export function FeedbackProvider({ children }: { children: ReactNode }) {
             key={t.id}
             role={t.kind === 'error' ? 'alert' : 'status'}
             className={cx(
-              'pointer-events-auto flex max-w-sm items-start gap-2.5 rounded-2xl border border-line bg-ink px-4 py-3 text-sm text-white',
-              t.leaving ? 'anim-rise-out' : 'anim-rise',
+              'pointer-events-auto flex max-w-sm items-start gap-2.5 rounded-2xl border border-line bg-rail px-4 py-3 text-sm text-white',
+              t.leaving ? 'anim-toast-out' : 'anim-toast',
             )}
             style={{ boxShadow: 'var(--shadow-pop)' }}
           >

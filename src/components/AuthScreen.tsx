@@ -249,7 +249,7 @@ function BrandPanel() {
     [{ top: 10, h: 22, c: 'bg-white/80' }],
   ]
   return (
-    <div className="relative hidden flex-1 overflow-hidden bg-ink p-12 lg:flex lg:flex-col lg:justify-between">
+    <div className="relative hidden flex-1 overflow-hidden bg-rail p-12 lg:flex lg:flex-col lg:justify-between">
       <div className="absolute -top-32 -right-32 h-96 w-96 rounded-full bg-maroon/60 blur-3xl" />
       <div className="relative">
         <p className="section-title text-peach/80!">Polestar Work Calendar</p>

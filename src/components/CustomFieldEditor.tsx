@@ -42,7 +42,7 @@ export function CustomFieldEditor({ fields, onChange, people, disabled }: Props)
   return (
     <div className="space-y-2">
       {fields.map((f, i) => (
-        <div key={f.id} className="group rounded-xl border border-line bg-white p-2.5">
+        <div key={f.id} className="group rounded-xl border border-line bg-surface p-2.5">
           <div className="mb-1.5 flex items-center gap-1">
             <input
               aria-label="Field name"
@@ -80,7 +80,7 @@ export function CustomFieldEditor({ fields, onChange, people, disabled }: Props)
       ))}
 
       {adding ? (
-        <div className="anim-pop rounded-xl border border-dashed border-line-strong bg-white p-2.5">
+        <div className="anim-pop rounded-xl border border-dashed border-line-strong bg-surface p-2.5">
           <div className="flex gap-2">
             <input
               autoFocus

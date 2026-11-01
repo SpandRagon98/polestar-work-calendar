@@ -33,7 +33,7 @@ export function TimeFields({ form, durations = false }: { form: TaskForm; durati
                 aria-pressed={form.minutes === m}
                 className={cx(
                   'h-7 rounded-lg border px-2.5 text-xs font-medium transition-colors',
-                  form.minutes === m ? 'border-maroon bg-peach-50 text-maroon' : 'border-line bg-white text-ash hover:border-stone hover:text-ink',
+                  form.minutes === m ? 'border-maroon bg-peach-50 text-maroon' : 'border-line bg-surface text-ash hover:border-stone hover:text-ink',
                 )}
               >
                 {formatDuration(m)}
@@ -60,13 +60,13 @@ export function RepeatFields({ form }: { form: TaskForm }) {
         onClick={() => form.setRepeat(!form.repeat)}
         className={cx(
           'inline-flex h-8 items-center gap-1.5 rounded-lg border px-2.5 text-xs font-semibold transition-colors',
-          form.repeat ? 'border-maroon bg-peach-50 text-maroon' : 'border-line bg-white text-ash hover:border-stone hover:text-ink',
+          form.repeat ? 'border-maroon bg-peach-50 text-maroon' : 'border-line bg-surface text-ash hover:border-stone hover:text-ink',
         )}
       >
         <Repeat size={13} /> Repeat
       </button>
       <Collapse open={form.repeat}>
-        <div className="mt-2.5 mb-px space-y-3 rounded-2xl border border-line bg-white p-3.5">
+        <div className="mt-2.5 mb-px space-y-3 rounded-2xl border border-line bg-surface p-3.5">
           <Segmented
             size="sm"
             label="Repeat pattern"

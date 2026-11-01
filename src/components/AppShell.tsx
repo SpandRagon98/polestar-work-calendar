@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import {
   CalendarDays,
   ChevronsLeft,
@@ -16,7 +16,7 @@ import { useApp } from '../context'
 import { useNotifications, type Notice } from '../hooks/useNotifications'
 import { ACTIVITY_LABEL } from '../lib/activity'
 import { desktopAlert } from '../lib/desktopAlerts'
-import { setMotionPref, startSmoothnessMonitor } from '../lib/motion'
+import { motionLevel, setMotionPref, startSmoothnessMonitor } from '../lib/motion'
 import { formatTimeRange } from '../lib/time'
 import { useFeedback } from './ui/feedback'
 import { ExportDialog } from './ExportDialog'
@@ -44,6 +44,7 @@ export function useShell(): ShellApi {
 }
 
 const COLLAPSE_KEY = 'pwc.sidebar.collapsed'
+const RAIL_SHIFT = 160 // expanded width minus collapsed width
 function readCollapsed(): boolean {
   try {
     return localStorage.getItem(COLLAPSE_KEY) === '1'
@@ -125,6 +126,33 @@ export function AppShell({ route, navigate, onSignOut, reloadMe, children }: Pro
       return !c
     })
 
+  // The sidebar's width changes at once; the rail and the page then slide into place
+  // together, on the compositor, so the calendar isn't laid out on every frame.
+  const railRef = useRef<HTMLElement>(null)
+  const pageRef = useRef<HTMLDivElement>(null)
+  const wasCollapsed = useRef(collapsed)
+  useLayoutEffect(() => {
+    if (wasCollapsed.current === collapsed) return
+    wasCollapsed.current = collapsed
+    const rail = railRef.current
+    const page = pageRef.current
+    if (!rail || !page || motionLevel() !== 'full' || !page.animate) return
+    const timing = { duration: 320, easing: 'cubic-bezier(0.16, 1, 0.3, 1)' }
+    const slide = (el: HTMLElement, from: number) => el.animate([{ transform: `translateX(${from}px)` }, { transform: 'none' }], timing)
+    if (collapsed) {
+      // The page slides over a strip of rail that covers the width being given up.
+      rail.classList.add('pw-rail-strip')
+      page.classList.add('pw-page-over')
+      slide(page, RAIL_SHIFT).onfinish = () => {
+        rail.classList.remove('pw-rail-strip')
+        page.classList.remove('pw-page-over')
+      }
+    } else {
+      slide(rail, -RAIL_SHIFT)
+      slide(page, -RAIL_SHIFT)
+    }
+  }, [collapsed])
+
   // Keyboard: Ctrl/Cmd + B toggles the sidebar.
   useEffect(() => {
     const on = (e: KeyboardEvent) => {
@@ -166,12 +194,13 @@ export function AppShell({ route, navigate, onSignOut, reloadMe, children }: Pro
 
   return (
     <ShellContext.Provider value={api}>
-      <div className="flex h-full">
+      <div className="flex h-full overflow-hidden">
         {!isMobile ? (
           <nav
+            ref={railRef}
             aria-label="Main"
             className={cx(
-              'relative z-30 flex shrink-0 flex-col bg-ink py-4',
+              'relative z-30 flex shrink-0 flex-col bg-rail py-4',
               collapsed ? 'w-[72px]' : 'w-[232px]',
             )}
           >
@@ -228,7 +257,9 @@ export function AppShell({ route, navigate, onSignOut, reloadMe, children }: Pro
           </nav>
         ) : null}
 
-        <div className="flex min-w-0 flex-1 flex-col">{children}</div>
+        <div ref={pageRef} className="flex min-w-0 flex-1 flex-col">
+          {children}
+        </div>
       </div>
 
       {exportRange ? (
@@ -275,10 +306,10 @@ function RailItem({
         active ? 'bg-white/12 text-white' : 'text-white/60 hover:bg-white/8 hover:text-white',
       )}
     >
-      <span className="relative flex shrink-0 items-center justify-center">
+      <span className="relative flex shrink-0 items-center justify-center transition-[scale] duration-150 group-hover:scale-110 group-active:scale-95">
         {icon}
         {badge && collapsed ? (
-          <span className="absolute -top-1.5 -right-2 flex h-4 min-w-4 items-center justify-center rounded-full bg-ember px-1 text-[9.5px] font-bold text-white ring-2 ring-ink">
+          <span key={badge} className="anim-badge absolute -top-1.5 -right-2 flex h-4 min-w-4 items-center justify-center rounded-full bg-ember px-1 text-[9.5px] font-bold text-white ring-2 ring-rail">
             {badge > 9 ? '9+' : badge}
           </span>
         ) : null}
@@ -287,7 +318,7 @@ function RailItem({
         <>
           <span className="anim-fade min-w-0 flex-1 truncate text-left">{label}</span>
           {badge ? (
-            <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-ember px-1.5 text-[10.5px] font-bold text-white">
+            <span key={badge} className="anim-badge flex h-5 min-w-5 items-center justify-center rounded-full bg-ember px-1.5 text-[10.5px] font-bold text-white">
               {badge > 9 ? '9+' : badge}
             </span>
           ) : hint ? (
@@ -295,7 +326,7 @@ function RailItem({
           ) : null}
         </>
       ) : null}
-      {active ? <span className="absolute top-2.5 bottom-2.5 left-0 w-[3px] rounded-r-full bg-apricot" aria-hidden /> : null}
+      {active ? <span className="anim-bar absolute top-2.5 bottom-2.5 left-0 w-[3px] rounded-r-full bg-apricot" aria-hidden /> : null}
     </button>
   )
 }
@@ -390,7 +421,7 @@ function MobileNavSwitch() {
         aria-selected={!onTickets}
         aria-label="Calendar"
         onClick={() => shell.navigate('calendar')}
-        className={cx('flex h-8 w-9 items-center justify-center rounded-[10px]', !onTickets ? 'bg-white text-ink shadow-sm' : 'text-ash')}
+        className={cx('flex h-8 w-9 items-center justify-center rounded-[10px]', !onTickets ? 'bg-surface text-ink shadow-sm' : 'text-ash')}
       >
         <CalendarDays size={16} />
       </button>
@@ -400,7 +431,7 @@ function MobileNavSwitch() {
         aria-selected={onTickets}
         aria-label="Tickets"
         onClick={() => shell.navigate('tickets')}
-        className={cx('relative flex h-8 w-9 items-center justify-center rounded-[10px]', onTickets ? 'bg-white text-ink shadow-sm' : 'text-ash')}
+        className={cx('relative flex h-8 w-9 items-center justify-center rounded-[10px]', onTickets ? 'bg-surface text-ink shadow-sm' : 'text-ash')}
       >
         <Ticket size={16} />
         {shell.notif.pending.length ? <span className="absolute top-1 right-1.5 h-2 w-2 rounded-full bg-ember ring-2 ring-canvas" /> : null}

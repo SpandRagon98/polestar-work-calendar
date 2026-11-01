@@ -24,6 +24,7 @@ import {
   addBookmark,
   deleteTask,
   deleteTaskSeries,
+  repeatTask,
   fetchActivities,
   respondToAssignment,
   respondToSeries,
@@ -43,7 +44,8 @@ import {
   parsePendingReason,
 } from '../lib/status'
 import { validateFields } from '../lib/customFields'
-import { formatLength, formatRelative, formatTimeRange, fromLocalInputs, toLocalInputs } from '../lib/time'
+import { buildOccurrences, MAX_OCCURRENCES, REPEAT_LABEL, type RepeatPattern } from '../lib/recurrence'
+import { formatLength, formatRelative, formatTimeRange, fromLocalInputs, shiftDate, taskSessions, toLocalInputs } from '../lib/time'
 import { useApp, useNow } from '../context'
 import { ApprovalControls, StatusPill } from './ApprovalControls'
 import { BookmarkList } from './BookmarkList'
@@ -57,13 +59,15 @@ interface Props {
   task: Task
   onClose: () => void
   refreshTask: (id: string) => Promise<Task | null>
+  /** Reload the page's list after several tasks were added at once. */
+  onManyChanged?: () => void
   onCreateFollowUp: (task: Task) => void
   onOpenTask: (id: string) => void
 }
 
 const STATE_CHIP: Record<string, string> = {
-  scheduled: 'bg-st-scheduled/12 text-[#5f5a57]',
-  in_progress: 'bg-st-progress/12 text-[#9a5512]',
+  scheduled: 'bg-st-scheduled/12 text-ash',
+  in_progress: 'bg-st-progress/12 text-warn',
   completed: 'bg-st-completed/12 text-st-completed',
   pending: 'bg-st-pending/10 text-st-pending',
   cancelled: 'bg-line text-stone',
@@ -73,7 +77,7 @@ const STATE_CHIP: Record<string, string> = {
 
 const PAGE = 40
 
-export function TaskDrawer({ task, onClose: closeNow, refreshTask, onCreateFollowUp, onOpenTask }: Props) {
+export function TaskDrawer({ task, onClose: closeNow, refreshTask, onManyChanged, onCreateFollowUp, onOpenTask }: Props) {
   const [closing, onClose] = useAnimatedClose(closeNow)
   const { me, people, profiles, zone, isMobile } = useApp()
   const { toast, confirm } = useFeedback()
@@ -338,7 +342,7 @@ export function TaskDrawer({ task, onClose: closeNow, refreshTask, onCreateFollo
         {editable ? (
           <input
             aria-label="Task title"
-            className="mt-2 w-full rounded-lg bg-transparent px-1 -mx-1 font-display text-xl font-bold text-ink outline-none hover:bg-canvas focus:bg-white focus:ring-2 focus:ring-ember/15"
+            className="mt-2 w-full rounded-lg bg-transparent px-1 -mx-1 font-display text-xl font-bold text-ink outline-none hover:bg-canvas focus:bg-surface focus:ring-2 focus:ring-ember/15"
             value={title}
             maxLength={200}
             onChange={(e) => setTitle(e.target.value)}
@@ -361,7 +365,7 @@ export function TaskDrawer({ task, onClose: closeNow, refreshTask, onCreateFollo
         </p>
       </div>
 
-      <div className="space-y-6 px-5 py-5">
+      <div className="anim-stagger space-y-6 px-5 py-5">
         {stale && canWork ? (
           <section className="rounded-2xl border border-st-pending/20 bg-st-pending/[0.05] p-4">
             <p className="flex items-center gap-2 text-sm font-semibold text-st-pending">
@@ -421,12 +425,33 @@ export function TaskDrawer({ task, onClose: closeNow, refreshTask, onCreateFollo
           <button
             type="button"
             onClick={() => setEditingTime(true)}
-            className="flex w-full items-center gap-2 rounded-xl border border-line bg-white px-3 py-2.5 text-left text-sm hover:border-stone"
+            className="flex w-full items-center gap-2 rounded-xl border border-line bg-surface px-3 py-2.5 text-left text-sm hover:border-stone"
           >
             <CalendarClock size={16} className="text-stone" />
             <span className="flex-1">Change date or time</span>
             <Pencil size={14} className="text-stone" />
           </button>
+        ) : null}
+
+        {editable && !task.series_id && task.work_status !== 'cancelled' && taskSessions(task.start_at, task.end_at, zone).length === 1 ? (
+          <RepeatEditor
+            task={task}
+            zone={zone}
+            onRepeat={async (occurrences, summary) => {
+              const ok = await mutate(
+                (v) =>
+                  repeatTask(task.id, v, occurrences).catch((e) => {
+                    const message = toApiError(e).message
+                    throw /repeat_task/.test(message)
+                      ? new Error('The Repeat button needs a one-time database update: run supabase/migrations/20261102000000_repeat_existing_task.sql in the Supabase SQL Editor.')
+                      : e
+                  }),
+                summary,
+              )
+              if (ok) onManyChanged?.()
+              return ok
+            }}
+          />
         ) : null}
 
         {/* Owners */}
@@ -516,7 +541,7 @@ export function TaskDrawer({ task, onClose: closeNow, refreshTask, onCreateFollo
                     'rounded-xl border px-2 py-2 text-xs font-semibold transition-colors',
                     task.work_status === o.value
                       ? cx('border-transparent', STATE_CHIP[o.value])
-                      : 'border-line bg-white text-ash hover:border-stone hover:text-ink',
+                      : 'border-line bg-surface text-ash hover:border-stone hover:text-ink',
                   )}
                 >
                   {o.label}
@@ -587,7 +612,7 @@ export function TaskDrawer({ task, onClose: closeNow, refreshTask, onCreateFollo
           <h3 className="section-title mb-2">Custom fields</h3>
           {fieldsStale ? (
             <div className="mb-2 flex items-start gap-2 rounded-xl border border-apricot/40 bg-apricot/10 px-3 py-2 text-xs text-ink">
-              <AlertCircle size={14} className="mt-px shrink-0 text-[#9a5a14]" />
+              <AlertCircle size={14} className="mt-px shrink-0 text-warn" />
               <span className="flex-1">Someone else changed these fields while you were editing. Saving would fail.</span>
               <button type="button" className="font-semibold text-ember hover:underline" onClick={discardFields}>
                 Load latest
@@ -600,12 +625,12 @@ export function TaskDrawer({ task, onClose: closeNow, refreshTask, onCreateFollo
             <CustomFieldEditor fields={fieldDraft} onChange={setFieldDraft} people={profiles} disabled={!editable} />
           )}
           {fieldsDirty ? (
-            <div className="anim-pop sticky bottom-2 mt-2 flex items-center gap-2 rounded-xl bg-ink px-3 py-2 text-xs text-white shadow-lg">
+            <div className="anim-pop sticky bottom-2 mt-2 flex items-center gap-2 rounded-xl bg-rail px-3 py-2 text-xs text-white shadow-lg">
               <span className="flex-1">{fieldError ?? 'Unsaved field changes'}</span>
               <button type="button" className="font-semibold text-white/70 hover:text-white" onClick={discardFields}>
                 Discard
               </button>
-              <Button size="sm" variant="primary" className="bg-white! text-ink!" disabled={!!fieldError} onClick={() => void saveFields()}>
+              <Button size="sm" variant="primary" className="bg-white! text-rail!" disabled={!!fieldError} onClick={() => void saveFields()}>
                 Save fields
               </Button>
             </div>
@@ -659,7 +684,7 @@ export function TaskDrawer({ task, onClose: closeNow, refreshTask, onCreateFollo
 
   return (
     <>
-      {isMobile ? <div className={cx('fixed inset-0 z-30 bg-ink/30', closing ? 'anim-fade-out' : 'anim-fade')} onClick={onClose} /> : null}
+      {isMobile ? <div className={cx('fixed inset-0 z-30 bg-rail/30', closing ? 'anim-fade-out' : 'anim-fade')} onClick={onClose} /> : null}
       <aside
         role="dialog"
         aria-label={`Task: ${task.title}`}
@@ -704,6 +729,93 @@ function MenuItem({
   )
 }
 
+/** Repeat this event at the same time on later dates. */
+function RepeatEditor({
+  task,
+  zone,
+  onRepeat,
+}: {
+  task: Task
+  zone: string
+  onRepeat: (occurrences: { start_at: string; end_at: string }[], summary: string) => Promise<boolean>
+}) {
+  const start = toLocalInputs(task.start_at, zone)
+  const end = toLocalInputs(task.end_at, zone)
+  const [open, setOpen] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [pattern, setPattern] = useState<RepeatPattern>('daily')
+  const [until, setUntil] = useState(() => shiftDate(start.date, 28))
+
+  const later = useMemo(
+    () =>
+      // Only once opened: working out dates takes a moment the panel shouldn't wait for.
+      open
+        ? buildOccurrences({ startDate: start.date, startTime: start.time, endDate: end.date, endTime: end.time, until, pattern, zone }).filter(
+            (o) => new Date(o.start_at) > new Date(task.start_at),
+          )
+        : [],
+    [open, start.date, start.time, end.date, end.time, until, pattern, zone, task.start_at],
+  )
+  const tooMany = later.length >= MAX_OCCURRENCES
+  const problem = tooMany ? `That’s too many dates: the most is ${MAX_OCCURRENCES}. Choose an earlier end date.` : later.length === 0 ? 'Choose an end date after this event.' : null
+
+  return (
+    <section>
+      <button
+        type="button"
+        aria-expanded={open}
+        onClick={() => setOpen((o) => !o)}
+        className={cx(
+          'flex w-full items-center gap-2 rounded-xl border px-3 py-2.5 text-left text-sm transition-colors',
+          open ? 'border-maroon bg-peach-50 text-maroon' : 'border-line bg-surface hover:border-stone',
+        )}
+      >
+        <Repeat size={16} className={open ? 'text-maroon' : 'text-stone'} />
+        <span className="flex-1">Repeat this event</span>
+      </button>
+      <Collapse open={open}>
+        <div className="mt-2 mb-px space-y-3 rounded-2xl border border-line bg-surface p-3.5">
+          <Segmented
+            size="sm"
+            label="Repeat pattern"
+            value={pattern}
+            onChange={setPattern}
+            options={(Object.keys(REPEAT_LABEL) as RepeatPattern[]).map((p) => ({ value: p, label: REPEAT_LABEL[p] }))}
+          />
+          <div>
+            <label className="label" htmlFor="repeat-until">
+              Until
+            </label>
+            <input id="repeat-until" type="date" className="field h-10" min={start.date} value={until} onChange={(e) => setUntil(e.target.value)} />
+          </div>
+          <p className={cx('text-xs leading-relaxed', problem ? 'text-st-pending' : 'text-stone')}>
+            {problem ?? `Same time, ${later.length} more date${later.length === 1 ? '' : 's'}. Each one can be changed on its own.`}
+          </p>
+          <div className="flex justify-end gap-1.5">
+            <Button size="sm" variant="ghost" onClick={() => setOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              size="sm"
+              variant="primary"
+              loading={busy}
+              disabled={!!problem}
+              onClick={async () => {
+                setBusy(true)
+                const ok = await onRepeat(later, `Added ${later.length} more date${later.length === 1 ? '' : 's'}.`)
+                setBusy(false)
+                if (ok) setOpen(false)
+              }}
+            >
+              Add {later.length} date{later.length === 1 ? '' : 's'}
+            </Button>
+          </div>
+        </div>
+      </Collapse>
+    </section>
+  )
+}
+
 function TimeEditor({
   task,
   zone,
@@ -726,7 +838,7 @@ function TimeEditor({
   const end = fromLocalInputs(ed, et, zone)
   const invalid = !start || !end || new Date(end) <= new Date(start)
   return (
-    <section className="anim-pop rounded-2xl border border-line bg-white p-3">
+    <section className="anim-pop rounded-2xl border border-line bg-surface p-3">
       <div className="grid grid-cols-[3rem_1fr_auto] items-center gap-2 text-xs text-ash">
         <span>Start</span>
         <input type="date" aria-label="Start date" className="field h-9" value={sd} onChange={(x) => setSd(x.target.value)} />
@@ -776,7 +888,7 @@ function PendingForm({
   const [note, setNote] = useState(parsed.note)
   const [busy, setBusy] = useState(false)
   return (
-    <div className="anim-pop mt-2 space-y-2 rounded-2xl border border-st-pending/20 bg-white p-3">
+    <div className="anim-pop mt-2 space-y-2 rounded-2xl border border-st-pending/20 bg-surface p-3">
       <label className="label" htmlFor="pending-reason">
         Why is it pending?
       </label>

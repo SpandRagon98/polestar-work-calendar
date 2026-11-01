@@ -110,7 +110,7 @@ export function ExportDialog({ open, onClose, visibleStart, visibleEnd }: Props)
                 onClick={() => choose(p)}
                 className={cx(
                   'rounded-xl border px-2 py-2 text-xs font-semibold',
-                  preset === p ? 'border-maroon bg-peach-50 text-maroon' : 'border-line bg-white text-ash hover:border-stone',
+                  preset === p ? 'border-maroon bg-peach-50 text-maroon' : 'border-line bg-surface text-ash hover:border-stone',
                 )}
               >
                 {label}

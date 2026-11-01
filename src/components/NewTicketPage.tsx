@@ -222,7 +222,7 @@ function Section({ step, title, children }: { step: number; title: string; child
   return (
     <section>
       <h3 className="mb-3 flex items-center gap-2.5 text-sm font-semibold text-ink">
-        <span className="flex h-6 w-6 items-center justify-center rounded-full bg-ink text-[11px] font-bold text-white">{step}</span>
+        <span className="flex h-6 w-6 items-center justify-center rounded-full bg-rail text-[11px] font-bold text-white">{step}</span>
         {title}
       </h3>
       <div className="md:pl-[2.125rem]">{children}</div>

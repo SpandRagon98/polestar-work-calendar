@@ -64,7 +64,7 @@ export function EventContent({ task, meId, zone, people, now, bar, handles }: Pr
               <span
                 key={a.user_id}
                 title={name}
-                className="inline-flex h-[17px] w-[17px] items-center justify-center rounded-full text-[8px] font-bold text-white ring-[1.5px] ring-white"
+                className="inline-flex h-[17px] w-[17px] items-center justify-center rounded-full text-[8px] font-bold text-white ring-[1.5px] ring-surface"
                 style={{ background: avatarColor(a.user_id), opacity: a.approval_status === 'accepted' ? 1 : 0.55 }}
               >
                 {initials(name)}
@@ -113,7 +113,7 @@ export function EventContent({ task, meId, zone, people, now, bar, handles }: Pr
                 <span
                   key={a.user_id}
                   title={name}
-                  className="inline-flex h-[17px] w-[17px] items-center justify-center rounded-full text-[8px] font-bold text-white ring-[1.5px] ring-white"
+                  className="inline-flex h-[17px] w-[17px] items-center justify-center rounded-full text-[8px] font-bold text-white ring-[1.5px] ring-surface"
                   style={{ background: avatarColor(a.user_id), opacity: a.approval_status === 'accepted' ? 1 : 0.55 }}
                 >
                   {initials(name)}
@@ -121,7 +121,7 @@ export function EventContent({ task, meId, zone, people, now, bar, handles }: Pr
               )
             })}
             {owners.length > 3 ? (
-              <span className="inline-flex h-[17px] items-center rounded-full bg-white px-1 text-[8px] font-bold text-ash ring-[1.5px] ring-white">
+              <span className="inline-flex h-[17px] items-center rounded-full bg-surface px-1 text-[8px] font-bold text-ash ring-[1.5px] ring-surface">
                 +{owners.length - 3}
               </span>
             ) : null}

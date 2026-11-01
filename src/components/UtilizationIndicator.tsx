@@ -9,7 +9,7 @@ import { Avatar, cx, useDismiss, usePresence } from './ui/primitives'
 const LEVEL_STYLE = {
   idle: 'text-ash',
   healthy: 'text-st-completed',
-  high: 'text-[#9a5a14]',
+  high: 'text-warn',
   over: 'text-ember',
 } as const
 
@@ -63,7 +63,7 @@ export function UtilizationIndicator({ tasks, focus, team, dates, showTeam, comp
         onClick={() => setOpen((o) => !o)}
         aria-expanded={open}
         aria-label={`Utilization ${pctLabel(u.percent)}: ${formatHours(u.plannedMinutes)} planned of ${formatHours(u.availableMinutes)} available`}
-        className="flex h-10 items-center gap-2.5 rounded-xl border border-line bg-white px-3 text-left hover:border-stone"
+        className="flex h-10 items-center gap-2.5 rounded-xl border border-line bg-surface px-3 text-left hover:border-stone"
       >
         <Gauge size={16} className={LEVEL_STYLE[level]} />
         <span className="leading-tight">

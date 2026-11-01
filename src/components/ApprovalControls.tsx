@@ -80,7 +80,7 @@ function RespondCard({ task, me, zone, people, onRespond, onAcceptSeries }: Prop
         </div>
       </div>
       {conflicts.length ? (
-        <p className="mt-3 flex items-start gap-1.5 rounded-xl bg-white/70 px-3 py-2 text-xs text-st-pending">
+        <p className="mt-3 flex items-start gap-1.5 rounded-xl bg-surface/70 px-3 py-2 text-xs text-st-pending">
           <AlertTriangle size={14} className="mt-px shrink-0" />
           Overlaps with {conflicts.map((c) => `“${c.title}”`).join(', ')} on your calendar.
         </p>
@@ -176,7 +176,7 @@ function RequestStatusCard({ task, me, zone, people, activities, onUseTime, onRe
           const sStart = suggestion?.metadata.start_at as string | undefined
           const sEnd = suggestion?.metadata.end_at as string | undefined
           return (
-            <li key={a.user_id} className="rounded-xl bg-white/80 px-3 py-2">
+            <li key={a.user_id} className="rounded-xl bg-surface/80 px-3 py-2">
               <div className="flex items-center gap-2">
                 <Avatar id={a.user_id} name={person?.name ?? '?'} size={22} />
                 <span className="flex-1 truncate text-sm font-medium">{person?.name ?? 'Unknown'}</span>
@@ -243,7 +243,7 @@ export function StatusPill({ status }: { status: Task['assignments'][number]['ap
     accepted: ['Accepted', 'bg-st-completed/10 text-st-completed'],
     pending: ['Awaiting', 'bg-st-awaiting/10 text-st-awaiting'],
     declined: ['Declined', 'bg-st-pending/10 text-st-pending'],
-    suggested: ['New time', 'bg-apricot/15 text-[#9a5a14]'],
+    suggested: ['New time', 'bg-apricot/15 text-warn'],
   } as const
   const [label, cls] = map[status]
   return <span className={`chip ${cls}`}>{label}</span>

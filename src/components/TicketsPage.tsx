@@ -265,7 +265,7 @@ export function TicketsPage({ openId, initialTab }: { openId?: string; initialTa
                   ) : null}
                 </EmptyState>
               ) : (
-                <ul className="divide-y divide-line">
+                <ul className="anim-stagger divide-y divide-line">
                   {filtered.map((t) => (
                     <TicketRow
                       key={t.id}
@@ -353,14 +353,14 @@ function TicketRow({
         <span key={a.user_id} className={cx('relative rounded-full', a.approval_status !== 'accepted' && 'opacity-60')}>
           <Avatar id={a.user_id} name={people.get(a.user_id)?.name ?? '?'} size={26} ring />
           {a.approval_status === 'declined' ? (
-            <span className="absolute -right-0.5 -bottom-0.5 h-2.5 w-2.5 rounded-full bg-st-pending ring-2 ring-white" />
+            <span className="absolute -right-0.5 -bottom-0.5 h-2.5 w-2.5 rounded-full bg-st-pending ring-2 ring-surface" />
           ) : a.approval_status === 'accepted' ? (
-            <span className="absolute -right-0.5 -bottom-0.5 h-2.5 w-2.5 rounded-full bg-st-completed ring-2 ring-white" />
+            <span className="absolute -right-0.5 -bottom-0.5 h-2.5 w-2.5 rounded-full bg-st-completed ring-2 ring-surface" />
           ) : null}
         </span>
       ))}
       {task.assignments.length > 4 ? (
-        <span className="flex h-[26px] items-center rounded-full bg-canvas px-1.5 text-[10px] font-bold text-ash ring-2 ring-white">
+        <span className="flex h-[26px] items-center rounded-full bg-canvas px-1.5 text-[10px] font-bold text-ash ring-2 ring-surface">
           +{task.assignments.length - 4}
         </span>
       ) : null}

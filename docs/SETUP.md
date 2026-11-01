@@ -38,6 +38,7 @@ Open **SQL Editor → New query**, paste each file in
 1. `20261029000000_init.sql` — tables, security, functions
 2. `20261030000000_admin_delete_user.sql` — lets admins delete people
 3. `20261101000000_admin_direct_and_series.sql` — admin-created events need no acceptance; repeating events
+4. `20261102000000_repeat_existing_task.sql` — the Repeat button on an existing event
 
 When a new migration file appears in a later update, run just that file.
 

@@ -87,7 +87,7 @@ function Chip({ on, onClick, children }: { on: boolean; onClick: () => void; chi
       onClick={onClick}
       className={cx(
         'inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors',
-        on ? 'border-maroon bg-peach-50 text-maroon' : 'border-line bg-white text-ash hover:border-stone',
+        on ? 'border-maroon bg-peach-50 text-maroon' : 'border-line bg-surface text-ash hover:border-stone',
       )}
     >
       {children}

@@ -87,6 +87,14 @@ export async function createTaskSeries(input: TaskInput, occurrences: { start_at
   return ids
 }
 
+export async function repeatTask(id: string, version: number, occurrences: { start_at: string; end_at: string }[]): Promise<string[]> {
+  const since = await stamp()
+  const [{ ids }] = await q<{ ids: string[] }>(`select public.repeat_task($1, $2, $3) as ids`, [id, version, JSON.stringify(occurrences)])
+  await changed(id, since)
+  for (const x of ids) await changed(x, since)
+  return ids
+}
+
 export async function respondToSeries(seriesId: string, response: 'accept' | 'decline', note?: string): Promise<number> {
   const since = await stamp()
   const ids = await q<{ id: string }>(`select id from public.tasks where series_id = $1`, [seriesId])

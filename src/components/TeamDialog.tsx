@@ -1,10 +1,11 @@
 import { useState } from 'react'
-import { Mail, Trash2, UserPlus } from 'lucide-react'
+import { Check as CheckIcon, Mail, Trash2, UserPlus } from 'lucide-react'
 import type { Profile, Role } from '../lib/types'
 import { adminDeleteUser, adminUpdateProfile, inviteUser, toApiError, updateMyProfile } from '../lib/api'
 import { appUrl } from '../lib/supabase'
 import { browserZone } from '../lib/time'
 import { useApp } from '../context'
+import { readTheme, setTheme, THEMES, type ThemeId } from '../lib/theme'
 import { useFeedback } from './ui/feedback'
 import { Avatar, Button, Dialog, Segmented, cx } from './ui/primitives'
 import {
@@ -125,7 +126,7 @@ export function TeamDialog({ open, onClose }: { open: boolean; onClose: () => vo
       width="max-w-4xl"
     >
       {inviting ? (
-        <div className="anim-pop mb-6 rounded-2xl border border-line bg-white p-5">
+        <div className="anim-pop mb-6 rounded-2xl border border-line bg-surface p-5">
           <p className="mb-3 text-sm font-semibold text-ink">Invite a teammate</p>
           <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1.3fr)_9rem]">
             <div>
@@ -367,15 +368,56 @@ export function ProfileDialog({ open, onClose, onSaved }: { open: boolean; onClo
           </p>
           <p className="mt-0.5">Roles and capacity are managed by an admin.</p>
         </div>
+        <ThemeSetting />
         <MotionSetting />
       </div>
     </Dialog>
   )
 }
 
+/** Colour theme, per browser. Applies straight away; Status colours stay the same. */
+function ThemeSetting() {
+  const [theme, setChosen] = useState<ThemeId>(readTheme)
+  return (
+    <div>
+      <span className="label">Colour theme</span>
+      <div role="radiogroup" aria-label="Colour theme" className="grid grid-cols-4 gap-2">
+        {THEMES.map((t) => (
+          <button
+            key={t.id}
+            type="button"
+            role="radio"
+            aria-checked={theme === t.id}
+            onClick={() => {
+              setChosen(t.id)
+              setTheme(t.id)
+            }}
+            className={cx(
+              'relative flex flex-col items-center gap-1.5 rounded-xl border px-1 py-2.5 text-[11px] font-medium transition-[border-color,background-color,scale] duration-150 active:scale-95',
+              theme === t.id ? 'border-maroon bg-peach-50 text-ink' : 'border-line bg-surface text-ash hover:border-stone hover:text-ink',
+            )}
+          >
+            <span className="flex" aria-hidden>
+              {t.swatch.map((c, i) => (
+                <span key={c} className={cx('h-5 w-5 rounded-full ring-2 ring-surface', i > 0 && '-ml-1.5')} style={{ background: c }} />
+              ))}
+            </span>
+            {t.name}
+            {theme === t.id ? (
+              <span className="anim-badge absolute -top-1.5 -right-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-maroon text-white" aria-hidden>
+                <CheckIcon size={10} strokeWidth={3} />
+              </span>
+            ) : null}
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 const MOTION_HINT: Record<MotionLevel, string> = {
   full: 'All animations.',
-  lite: 'Quick fades only — best on machines that stutter (graphics acceleration off, office security settings).',
+  lite: 'Lighter animations that play on any laptop — best on machines that stutter (graphics acceleration off, office security settings).',
   off: 'No animations.',
 }
 
@@ -468,7 +510,7 @@ function MotionSetting() {
         {MOTION_HINT[level]}
       </p>
 
-      <div className="mt-3 rounded-2xl border border-line bg-white p-3.5">
+      <div className="mt-3 rounded-2xl border border-line bg-surface p-3.5">
         <div className="flex items-center gap-3">
           <div className="min-w-0 flex-1">
             <p className="text-xs font-semibold text-ink">Smoothness check</p>

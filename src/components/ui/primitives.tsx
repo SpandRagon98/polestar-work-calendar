@@ -21,9 +21,9 @@ type Size = 'sm' | 'md' | 'icon'
 
 const VARIANTS: Record<Variant, string> = {
   primary: 'bg-maroon text-white hover:bg-maroon-600 shadow-sm disabled:bg-maroon/50',
-  secondary: 'bg-white text-ink border border-line-strong hover:border-stone hover:bg-canvas',
+  secondary: 'bg-surface text-ink border border-line-strong hover:border-stone hover:bg-canvas',
   ghost: 'text-ash hover:bg-canvas hover:text-ink',
-  danger: 'bg-white text-st-pending border border-st-pending/30 hover:bg-st-pending/5',
+  danger: 'bg-surface text-st-pending border border-st-pending/30 hover:bg-st-pending/5',
   soft: 'bg-peach-50 text-maroon hover:bg-peach-100',
 }
 const SIZES: Record<Size, string> = {
@@ -76,7 +76,7 @@ export function Avatar({ id, name, size = 24, ring }: { id: string; name: string
   return (
     <span
       title={name}
-      className={cx('inline-flex shrink-0 items-center justify-center rounded-full font-semibold text-white', ring && 'ring-2 ring-white')}
+      className={cx('inline-flex shrink-0 items-center justify-center rounded-full font-semibold text-white', ring && 'ring-2 ring-surface')}
       style={{ width: size, height: size, fontSize: Math.max(9, size * 0.4), background: avatarColor(id) }}
     >
       {initials(name)}
@@ -87,9 +87,9 @@ export function Avatar({ id, name, size = 24, ring }: { id: string; name: string
 export function Logo({ compact, className }: { compact?: boolean; className?: string }) {
   const base = import.meta.env.BASE_URL
   return compact ? (
-    <img src={`${base}polestar-mark.png`} alt="Polestar Analytics" className={cx('h-7 w-7 object-contain', className)} />
+    <img src={`${base}polestar-mark.png`} alt="Polestar Analytics" className={cx('pw-logo h-7 w-7 object-contain', className)} />
   ) : (
-    <img src={`${base}polestar-logo.png`} alt="Polestar Analytics" className={cx('h-8 w-auto object-contain', className)} />
+    <img src={`${base}polestar-logo.png`} alt="Polestar Analytics" className={cx('pw-logo h-8 w-auto object-contain', className)} />
   )
 }
 
@@ -248,7 +248,7 @@ export function Dialog({
   if (!open) return null
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center sm:p-6" role="presentation">
-      <div className={cx('absolute inset-0 bg-ink/30', closing ? 'anim-fade-out' : 'anim-fade')} onClick={close} />
+      <div className={cx('absolute inset-0 bg-rail/30', closing ? 'anim-fade-out' : 'anim-fade')} onClick={close} />
       <div
         ref={panel}
         role="dialog"
@@ -329,8 +329,8 @@ export function Segmented<T extends string>({
         <span
           aria-hidden
           className={cx(
-            'absolute top-0.5 bottom-0.5 left-0 rounded-[10px] bg-white shadow-sm',
-            animate && 'transition-[transform,width] duration-200 ease-[cubic-bezier(0.2,0.8,0.2,1)]',
+            'absolute top-0.5 bottom-0.5 left-0 rounded-[10px] bg-surface shadow-sm',
+            animate && 'transition-[transform,width] duration-250 ease-[cubic-bezier(0.34,1.3,0.64,1)]',
           )}
           style={{ width: pill.w, transform: `translateX(${pill.x}px)` }}
         />

@@ -381,6 +381,54 @@ describe('admins assign directly', () => {
   })
 })
 
+describe('repeating an existing event', () => {
+  const later = [3, 4].map((day) => ({ start_at: at(10, 0, day), end_at: at(11, 0, day) }))
+  const original = (user: string, owners: string[]) =>
+    rpc<string>(user, 'create_task', [{ title: 'Standup', description: 'Notes', start_at: at(10, 0, 2), end_at: at(11, 0, 2), owner_ids: owners, priority: 'high' }])
+
+  it('links the original and copies its details to each later date', async () => {
+    const id = await original(spandan, [spandan])
+    const ids = await rpc<string[]>(spandan, 'repeat_task', [id, 1, JSON.stringify(later)])
+    expect(ids).toHaveLength(2)
+    const first = await task(id)
+    const copies = await Promise.all(ids.map(task))
+    expect(first.series_id).toBeTruthy()
+    expect(first.version).toBe(2)
+    for (const c of copies) {
+      expect(c.series_id).toBe(first.series_id)
+      expect(c.title).toBe('Standup')
+      expect(c.description).toBe('Notes')
+      expect(c.priority).toBe('high')
+    }
+    expect(new Date(copies[1].start_at as string).toISOString()).toBe(new Date(later[1].start_at).toISOString())
+  })
+
+  it('asks other owners to accept, unless an admin repeats it', async () => {
+    const mine = await original(spandan, [spandan, mandya])
+    const [copy] = await rpc<string[]>(spandan, 'repeat_task', [mine, 1, JSON.stringify(later)])
+    expect(await assignments(copy)).toEqual({ [spandan]: 'accepted', [mandya]: 'pending' })
+
+    const theirs = await original(admin, [admin, mandya])
+    const [direct] = await rpc<string[]>(admin, 'repeat_task', [theirs, 1, JSON.stringify(later)])
+    expect(await assignments(direct)).toEqual({ [admin]: 'accepted', [mandya]: 'accepted' })
+  })
+
+  it('refuses stale versions, repeats of a series, earlier dates and outsiders, leaving nothing behind', async () => {
+    const id = await original(spandan, [spandan])
+    await fails(rpc(spandan, 'repeat_task', [id, 9, JSON.stringify(later)]), 'PT409')
+    await fails(rpc(mandya, 'repeat_task', [id, 1, JSON.stringify(later)]))
+    await fails(
+      rpc(spandan, 'repeat_task', [id, 1, JSON.stringify([later[0], { start_at: at(10, 0, 1), end_at: at(11, 0, 1) }])]),
+      undefined,
+      /after the event/,
+    )
+    expect((await task(id)).series_id).toBeNull()
+    await rpc(spandan, 'repeat_task', [id, 1, JSON.stringify(later)])
+    await fails(rpc(spandan, 'repeat_task', [id, 2, JSON.stringify(later)]), undefined, /already repeats/)
+    await fails(t.asAnon(`select public.repeat_task(gen_random_uuid(), 1, '[]'::jsonb)`), '42501')
+  })
+})
+
 describe('recurring series', () => {
   const occurrences = [2, 3, 4].map((day) => ({ start_at: at(10, 0, day), end_at: at(11, 0, day) }))
   const series = (user: string, owners: string[]) =>
