@@ -134,7 +134,7 @@ export const CalendarView = forwardRef<CalendarHandle, Props>(function CalendarV
         start: t.start_at,
         end: t.end_at,
         editable: canReschedule(t, me),
-        classNames: ['pw-event'],
+        classNames: canReschedule(t, me) ? ['pw-event', 'pw-movable'] : ['pw-event'],
         extendedProps: { task: t },
       })),
     [tasks, me],
@@ -155,7 +155,7 @@ export const CalendarView = forwardRef<CalendarHandle, Props>(function CalendarV
       allDaySlot={false}
       nowIndicator
       slotDuration="00:30:00"
-      snapDuration="00:15:00"
+      snapDuration="00:30:00"
       scrollTime="08:00:00"
       scrollTimeReset={false}
       slotLabelFormat={{ hour: 'numeric', meridiem: 'short' }}
@@ -184,10 +184,8 @@ export const CalendarView = forwardRef<CalendarHandle, Props>(function CalendarV
         })
       }}
       select={(arg: DateSelectArg) => {
-        let end = arg.end
-        // A single click selects one 30-minute slot; default new tasks to an hour.
-        if (end.getTime() - arg.start.getTime() <= 30 * 60000) end = new Date(arg.start.getTime() + 60 * 60000)
-        latest.current.onSelectRange(arg.start, end)
+        // A single click selects one 30-minute slot, which is the default task length.
+        latest.current.onSelectRange(arg.start, arg.end)
         arg.view.calendar.unselect()
       }}
       eventClick={(arg: EventClickArg) => {

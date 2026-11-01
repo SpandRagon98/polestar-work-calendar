@@ -161,6 +161,13 @@
   cursor: pointer;
   transition: transform 0.18s cubic-bezier(0.2, 0.8, 0.2, 1);
 }
+/* Grab anywhere to move; the bottom edge keeps its own resize cursor. */
+.fc .fc-event.pw-event.pw-movable {
+  cursor: grab;
+}
+.fc .fc-event.pw-event.pw-movable:active {
+  cursor: grabbing;
+}
 .fc .fc-event.pw-event:hover {
   box-shadow: 0 4px 12px rgb(37 11 11 / 0.12);
   transform: translateY(-1px);
