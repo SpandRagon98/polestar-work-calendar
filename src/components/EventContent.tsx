@@ -3,7 +3,7 @@ import { AlertCircle, Bookmark, Flag, Hourglass, Repeat } from 'lucide-react'
 import type { Profile, Task } from '../lib/types'
 import { displayState, needsUpdate, progressColor, initials, avatarColor, STATE_LABEL } from '../lib/status'
 import { displayValue } from '../lib/customFields'
-import { formatTimeRange, toZoned } from '../lib/time'
+import { dailySlot, formatTimeRange, toZoned } from '../lib/time'
 
 interface Props {
   task: Task
@@ -23,10 +23,12 @@ export function EventContent({ task, meId, zone, people, now, bar, handles }: Pr
   const stale = needsUpdate(task, now)
   const owners = task.assignments.filter((a) => a.approval_status !== 'declined')
   const pinned = task.custom_fields.filter((f) => f.pinned).slice(0, 2)
-  const minutes = (new Date(task.end_at).getTime() - new Date(task.start_at).getTime()) / 60000
+  // A daily slot looks like one day's worth of the event.
+  const slot = dailySlot(task.start_at, task.end_at, zone)
+  const minutes = slot?.windowMinutes ?? (new Date(task.end_at).getTime() - new Date(task.start_at).getTime()) / 60000
   const compact = minutes <= 45
   const start = toZoned(task.start_at, zone)
-  const end = toZoned(task.end_at, zone)
+  const end = slot ? start.plus({ minutes: slot.windowMinutes }) : toZoned(task.end_at, zone)
   const time = `${start.toFormat(start.minute ? 'h:mm' : 'h')}–${end.toFormat(end.minute ? 'h:mm a' : 'h a')}`
   // The event element is reused as the task changes, so keep its label in step.
   const body = useRef<HTMLDivElement>(null)

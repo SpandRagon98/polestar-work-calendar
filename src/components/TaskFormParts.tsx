@@ -41,7 +41,7 @@ export function TimeFields({ form, durations = false }: { form: TaskForm; durati
             ))
           : null}
         <span className={cx('text-xs', form.timeInvalid ? 'text-st-pending' : 'text-stone', durations && 'ml-1')}>
-          {form.timeInvalid ? 'End time must be later than start time.' : `${durations ? '' : `${formatDuration(form.minutes)} · `}times in ${zone}`}
+          {form.timeInvalid ? 'End time must be later than start time.' : `${durations ? '' : `${form.lengthLabel} · `}times in ${zone}`}
         </span>
       </div>
     </div>

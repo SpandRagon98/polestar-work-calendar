@@ -155,7 +155,7 @@ export function CalendarPage() {
         ? all.filter(
             (o) =>
               o.id !== fresh.id &&
-              overlaps(o, fresh) &&
+              overlaps(o, fresh, zone) &&
               fresh.assignments.some((a) => isConfirmedFor(fresh, a.user_id) && isConfirmedFor(o, a.user_id)),
           )
         : []

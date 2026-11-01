@@ -4,6 +4,7 @@ import type { Activity, Profile, Task } from '../lib/types'
 import { fetchOverlapping, type AssignmentResponse } from '../lib/api'
 import { myAssignment } from '../lib/status'
 import { formatTimeRange, fromLocalInputs, toLocalInputs } from '../lib/time'
+import { overlaps } from '../lib/utilization'
 import { Avatar, Button } from './ui/primitives'
 
 interface Props {
@@ -47,12 +48,12 @@ function RespondCard({ task, me, zone, people, onRespond, onAcceptSeries }: Prop
   useEffect(() => {
     let alive = true
     fetchOverlapping([me.user_id], task.start_at, task.end_at, task.id)
-      .then((rows) => alive && setConflicts(rows))
+      .then((rows) => alive && setConflicts(rows.filter((r) => overlaps(task, r, zone))))
       .catch(() => undefined)
     return () => {
       alive = false
     }
-  }, [me.user_id, task.start_at, task.end_at, task.id])
+  }, [me.user_id, task.start_at, task.end_at, task.id, zone])
 
   async function run(response: AssignmentResponse) {
     setBusy(response)

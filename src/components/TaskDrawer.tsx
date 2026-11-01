@@ -43,7 +43,7 @@ import {
   parsePendingReason,
 } from '../lib/status'
 import { validateFields } from '../lib/customFields'
-import { durationMinutes, formatDuration, formatRelative, formatTimeRange, fromLocalInputs, toLocalInputs } from '../lib/time'
+import { formatLength, formatRelative, formatTimeRange, fromLocalInputs, toLocalInputs } from '../lib/time'
 import { useApp, useNow } from '../context'
 import { ApprovalControls, StatusPill } from './ApprovalControls'
 import { BookmarkList } from './BookmarkList'
@@ -271,7 +271,6 @@ export function TaskDrawer({ task, onClose: closeNow, refreshTask, onCreateFollo
     }
   }
 
-  const minutes = durationMinutes(task.start_at, task.end_at)
   const statusOptions: { value: WorkStatus; label: string }[] = [
     { value: 'scheduled', label: 'Scheduled' },
     { value: 'in_progress', label: 'In progress' },
@@ -353,10 +352,12 @@ export function TaskDrawer({ task, onClose: closeNow, refreshTask, onCreateFollo
         ) : (
           <h2 className="mt-2 font-display text-xl font-bold text-ink">{task.title}</h2>
         )}
-        <p className="mt-1 flex items-center gap-1.5 text-sm text-ash">
-          <Clock size={14} className="text-stone" />
-          {formatTimeRange(task.start_at, task.end_at, zone)}
-          <span className="text-stone">· {formatDuration(minutes)}</span>
+        <p className="mt-1 flex items-start gap-1.5 text-sm leading-snug text-ash">
+          <Clock size={14} className="mt-[3px] shrink-0 text-stone" />
+          <span>
+            {formatTimeRange(task.start_at, task.end_at, zone)}
+            <span className="text-stone"> · {formatLength(task.start_at, task.end_at, zone)}</span>
+          </span>
         </p>
       </div>
 

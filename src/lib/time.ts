@@ -69,6 +69,12 @@ export function formatDuration(minutes: number): string {
 export function formatTimeRange(start: string, end: string, zone: string): string {
   const s = toZoned(start, zone)
   const e = toZoned(end, zone)
+  const slot = dailySlot(start, end, zone)
+  if (slot) {
+    const lastDay = s.plus({ days: slot.days - 1 })
+    const slotEnd = s.plus({ minutes: slot.windowMinutes })
+    return `${s.toFormat('ccc d LLL')} – ${lastDay.toFormat('ccc d LLL')}, ${s.toFormat('h:mm a')} – ${slotEnd.toFormat('h:mm a')} daily`
+  }
   const sameDay = s.hasSame(e, 'day')
   const left = s.toFormat('ccc d LLL, h:mm a')
   const right = sameDay ? e.toFormat('h:mm a') : e.toFormat('ccc d LLL, h:mm a')
@@ -93,13 +99,71 @@ export function spanDates(start: string, end: string, zone: string): { first: st
   }
 }
 
+/** Longest daily window; anything longer really is one continuous block. */
+const MAX_DAILY_WINDOW = 16 * 60
+
 /**
- * A true multi-day event, shown as a bar across days. A short overnight task
- * (say 10 PM–2 AM) stays on the time grid.
+ * An event spanning days happens at the same time on each day: Mon 7 PM → Wed 8 PM
+ * means 7–8 PM on Monday, Tuesday and Wednesday. Returns the number of days and
+ * the daily length, or null for a same-day (or short overnight) event. Worked out
+ * on the local clock, so daylight-saving changes don't disturb it.
+ */
+export function dailySlot(start: string, end: string, zone: string): { days: number; windowMinutes: number } | null {
+  const s = toZoned(start, zone)
+  const e = toZoned(end, zone)
+  const dayDiff = Math.round(e.startOf('day').diff(s.startOf('day'), 'days').days)
+  const total = dayDiff * 1440 + (e.hour * 60 + e.minute) - (s.hour * 60 + s.minute)
+  const windowMinutes = ((total % 1440) + 1440) % 1440
+  const extraDays = (total - windowMinutes) / 1440
+  if (extraDays < 1 || windowMinutes === 0 || windowMinutes > MAX_DAILY_WINDOW) return null
+  return { days: extraDays + 1, windowMinutes }
+}
+
+/** When the event actually happens: one session per day for a daily slot, otherwise just its start and end. */
+export function taskSessions(start: string, end: string, zone: string): { start_at: string; end_at: string }[] {
+  const slot = dailySlot(start, end, zone)
+  if (!slot) return [{ start_at: start, end_at: end }]
+  const s = toZoned(start, zone)
+  return Array.from({ length: slot.days }, (_, i) => {
+    const day = s.plus({ days: i })
+    return { start_at: day.toUTC().toISO()!, end_at: day.plus({ minutes: slot.windowMinutes }).toUTC().toISO()! }
+  })
+}
+
+/** Total scheduled minutes across all sessions. */
+export function scheduledMinutes(start: string, end: string, zone: string): number {
+  return taskSessions(start, end, zone).reduce((sum, x) => sum + durationMinutes(x.start_at, x.end_at), 0)
+}
+
+/** "1h a day · 3 days" for a daily slot, otherwise the plain length. */
+export function formatLength(start: string, end: string, zone: string): string {
+  const slot = dailySlot(start, end, zone)
+  return slot ? `${formatDuration(slot.windowMinutes)} a day · ${slot.days} days` : formatDuration(durationMinutes(start, end))
+}
+
+/**
+ * A continuous block across days (ending earlier in the day than a slot could, or
+ * lasting most of each day), shown as a bar. Rare: most events spanning days are slots.
  */
 export function isMultiDay(start: string, end: string, zone: string): boolean {
   const { first, last } = spanDates(start, end, zone)
-  return first !== last && durationMinutes(start, end) >= 12 * 60
+  return first !== last && durationMinutes(start, end) >= 12 * 60 && !dailySlot(start, end, zone)
+}
+
+/** Shift a daily-slot event after a drag or resize of one of its days. */
+export function shiftSlot(
+  start: string,
+  end: string,
+  zone: string,
+  moved: { delta?: { days: number; milliseconds: number }; startDelta?: { milliseconds: number }; endDelta?: { milliseconds: number } },
+): { start_at: string; end_at: string } {
+  const s = toZoned(start, zone)
+  const e = toZoned(end, zone)
+  const { delta, startDelta, endDelta } = moved
+  // Resizing changes the time of every day; the days themselves change via the side handles.
+  const newStart = s.plus({ days: delta?.days ?? 0, milliseconds: (delta?.milliseconds ?? 0) + (startDelta?.milliseconds ?? 0) })
+  const newEnd = e.plus({ days: delta?.days ?? 0, milliseconds: (delta?.milliseconds ?? 0) + (endDelta?.milliseconds ?? 0) })
+  return { start_at: newStart.toUTC().toISO()!, end_at: newEnd.toUTC().toISO()! }
 }
 
 /**
@@ -131,11 +195,11 @@ export function stretchToDate(
     : withDates(start, end, zone, date > last ? last : date, last)
 }
 
-/** Dragging across days in the top row of the calendar: 9–6 across those days, or a default slot for one day. */
+/** Dragging across days in the top row of the calendar: 9–5 on each of those days, or a default slot for one day. */
 export function dayRowSelection(startStr: string, endExclusiveStr: string, zone: string): { start: Date; end: Date } {
   const last = shiftDate(endExclusiveStr, -1)
   const start = DateTime.fromISO(startStr, { zone }).set({ hour: 9 })
-  const end = last === startStr ? start.plus({ minutes: 30 }) : DateTime.fromISO(last, { zone }).set({ hour: 18 })
+  const end = last === startStr ? start.plus({ minutes: 30 }) : DateTime.fromISO(last, { zone }).set({ hour: 17 })
   return { start: start.toJSDate(), end: end.toJSDate() }
 }
 

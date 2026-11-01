@@ -4,7 +4,8 @@ import type { CustomField, Priority, Task } from '../lib/types'
 import { createTask, createTaskSeries, fetchOverlapping, toApiError } from '../lib/api'
 import { validateFields } from '../lib/customFields'
 import { buildOccurrences, MAX_OCCURRENCES, occurrenceDates, type RepeatPattern } from '../lib/recurrence'
-import { durationMinutes, fromLocalInputs, isMultiDay, shiftDate, toLocalInputs } from '../lib/time'
+import { dailySlot, durationMinutes, formatLength, fromLocalInputs, isMultiDay, shiftDate, toLocalInputs } from '../lib/time'
+import { overlaps } from '../lib/utilization'
 import { useApp } from '../context'
 
 export interface CreateDraft {
@@ -45,6 +46,7 @@ export function useTaskForm(draft: CreateDraft, defaultOwners: string[]) {
   const endIso = fromLocalInputs(endDate, endTime, zone)
   const timeInvalid = !startIso || !endIso || new Date(endIso) <= new Date(startIso)
   const minutes = timeInvalid ? 0 : durationMinutes(startIso!, endIso!)
+  const lengthLabel = timeInvalid ? '' : formatLength(startIso!, endIso!, zone)
   const others = owners.filter((o) => o !== me.user_id)
   // Admins assign directly; anyone else needs each other owner to accept.
   const isRequest = others.length > 0 && me.role !== 'admin'
@@ -60,7 +62,7 @@ export function useTaskForm(draft: CreateDraft, defaultOwners: string[]) {
   )
   const repeatError = !repeat
     ? null
-    : !timeInvalid && isMultiDay(startIso!, endIso!, zone)
+    : !timeInvalid && (dailySlot(startIso!, endIso!, zone) || isMultiDay(startIso!, endIso!, zone))
       ? 'Repeating works for events within one day. Shorten the event, or turn off Repeat.'
       : repeatDates.length > MAX_OCCURRENCES
         ? `That’s more than ${MAX_OCCURRENCES} events. Choose an earlier end date.`
@@ -91,11 +93,11 @@ export function useTaskForm(draft: CreateDraft, defaultOwners: string[]) {
     }
     const id = setTimeout(() => {
       fetchOverlapping(owners, startIso!, endIso!)
-        .then(setConflicts)
+        .then((rows) => setConflicts(rows.filter((t) => overlaps({ start_at: startIso!, end_at: endIso! }, t, zone))))
         .catch(() => setConflicts([]))
     }, 350)
     return () => clearTimeout(id)
-  }, [owners, startIso, endIso, timeInvalid])
+  }, [owners, startIso, endIso, timeInvalid, zone])
 
   const conflictText = useMemo(() => {
     const byPerson = new Map<string, string[]>()
@@ -160,7 +162,7 @@ export function useTaskForm(draft: CreateDraft, defaultOwners: string[]) {
     title, setTitle,
     startDate, setStartDate, startTime, setStartTime,
     endDate, setEndDate, endTime, setEndTime,
-    setDuration, minutes, timeInvalid,
+    setDuration, minutes, lengthLabel, timeInvalid,
     owners, setOwners, others, isRequest, directAssign,
     repeat, setRepeat, repeatPattern, setRepeatPattern, repeatUntil, setRepeatUntil, repeatDates, repeatError,
     description, setDescription,

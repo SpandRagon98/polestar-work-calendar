@@ -7,7 +7,7 @@ import type { DateSelectArg, EventClickArg, EventDropArg, EventInput, EventMount
 import type { EventResizeDoneArg } from '@fullcalendar/interaction'
 import type { Profile, Task } from '../lib/types'
 import { canReschedule } from '../lib/permissions'
-import { barToTimes, dayRowSelection, isMultiDay, shiftDate, spanDates, stretchToDate } from '../lib/time'
+import { barToTimes, dayRowSelection, isMultiDay, shiftDate, shiftSlot, spanDates, stretchToDate, taskSessions, toZoned } from '../lib/time'
 import { EventContent } from './EventContent'
 import { motionLevel } from '../lib/motion'
 
@@ -36,11 +36,16 @@ interface Props {
   onReschedule: (task: Task, start: Date, end: Date) => Promise<void>
 }
 
-type MoveArg = Pick<EventDropArg, 'event' | 'revert'>
+type MoveArg = Pick<EventDropArg, 'event' | 'revert'> & {
+  delta?: { days: number; milliseconds: number }
+  startDelta?: { milliseconds: number }
+  endDelta?: { milliseconds: number }
+}
 
 /**
  * Save a drag or resize; if the save fails the event snaps back to where it was.
  * Multi-day bars change days only: the event keeps its start and end times of day.
+ * Moving or resizing one day of a daily slot applies to all of its days.
  */
 export async function persistMove(arg: MoveArg, save: Props['onReschedule'], zone = 'UTC'): Promise<boolean> {
   const task = arg.event.extendedProps.task as Task | undefined
@@ -50,7 +55,10 @@ export async function persistMove(arg: MoveArg, save: Props['onReschedule'], zon
     return false
   }
   try {
-    if (arg.event.allDay) {
+    if (arg.event.extendedProps.slotDate) {
+      const t = shiftSlot(task.start_at, task.end_at, zone, arg)
+      await save(task, new Date(t.start_at), new Date(t.end_at))
+    } else if (arg.event.allDay) {
       const t = barToTimes(task.start_at, task.end_at, zone, arg.event.startStr.slice(0, 10), arg.event.endStr.slice(0, 10))
       await save(task, new Date(t.start_at), new Date(t.end_at))
     } else {
@@ -199,20 +207,41 @@ export const CalendarView = forwardRef<CalendarHandle, Props>(function CalendarV
 
   const events = useMemo<EventInput[]>(
     () =>
-      tasks.map((t) => {
-        // Multi-day events are bars in the top row, resized by their left and right ends.
+      tasks.flatMap((t): EventInput[] => {
+        const movable = canReschedule(t, me)
+        const classNames = movable ? ['pw-event', 'pw-movable'] : ['pw-event']
+        // An event spanning days appears at its time on each day; groupId makes the days move together.
+        const sessions = taskSessions(t.start_at, t.end_at, zone)
+        if (sessions.length > 1) {
+          return sessions.map((x) => {
+            const slotDate = toZoned(x.start_at, zone).toISODate()!
+            return {
+              id: `${t.id}:${slotDate}`,
+              groupId: t.id,
+              title: t.title,
+              start: x.start_at,
+              end: x.end_at,
+              editable: movable,
+              classNames,
+              extendedProps: { task: t, slotDate },
+            }
+          })
+        }
+        // A continuous block across days is a bar in the top row, resized by its ends.
         const multi = isMultiDay(t.start_at, t.end_at, zone)
         const span = multi ? spanDates(t.start_at, t.end_at, zone) : null
-        return {
-          id: t.id,
-          title: t.title,
-          allDay: multi,
-          start: span ? span.first : t.start_at,
-          end: span ? shiftDate(span.last, 1) : t.end_at,
-          editable: canReschedule(t, me),
-          classNames: canReschedule(t, me) ? ['pw-event', 'pw-movable'] : ['pw-event'],
-          extendedProps: { task: t },
-        }
+        return [
+          {
+            id: t.id,
+            title: t.title,
+            allDay: multi,
+            start: span ? span.first : t.start_at,
+            end: span ? shiftDate(span.last, 1) : t.end_at,
+            editable: movable,
+            classNames,
+            extendedProps: { task: t },
+          },
+        ]
       }),
     [tasks, me, zone],
   )
@@ -277,7 +306,7 @@ export const CalendarView = forwardRef<CalendarHandle, Props>(function CalendarV
       }}
       eventClick={(arg: EventClickArg) => {
         arg.jsEvent.preventDefault()
-        latest.current.onOpenTask(arg.event.id)
+        latest.current.onOpenTask((arg.event.extendedProps.task as Task).id)
       }}
       eventDrop={onMove}
       eventResize={onMove}
@@ -302,7 +331,7 @@ export const CalendarView = forwardRef<CalendarHandle, Props>(function CalendarV
         el.onkeydown = (e) => {
           if (e.key === 'Enter' || e.key === ' ') {
             e.preventDefault()
-            latest.current.onOpenTask(arg.event.id)
+            latest.current.onOpenTask(task.id)
           }
         }
       }}
@@ -318,6 +347,8 @@ export const CalendarView = forwardRef<CalendarHandle, Props>(function CalendarV
         }
         const stretchable = !arg.event.allDay && !isMobile && arg.view.type === 'timeGridWeek' && canReschedule(task, me)
         const date = spanDates(task.start_at, task.end_at, zone)
+        // On a daily slot, only the first day stretches left and only the last stretches right.
+        const slotDate = arg.event.extendedProps.slotDate as string | undefined
         return (
           <EventContent
             task={task}
@@ -329,8 +360,8 @@ export const CalendarView = forwardRef<CalendarHandle, Props>(function CalendarV
             handles={
               stretchable ? (
                 <>
-                  <SpanHandle side="left" date={date.first} onDone={(d) => stretch(task, 'left', d)} />
-                  <SpanHandle side="right" date={date.last} onDone={(d) => stretch(task, 'right', d)} />
+                  {!slotDate || slotDate === date.first ? <SpanHandle side="left" date={date.first} onDone={(d) => stretch(task, 'left', d)} /> : null}
+                  {!slotDate || slotDate === date.last ? <SpanHandle side="right" date={date.last} onDone={(d) => stretch(task, 'right', d)} /> : null}
                 </>
               ) : null
             }

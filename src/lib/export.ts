@@ -4,7 +4,7 @@ import type { Activity, Profile, Task } from './types'
 import { ACTIVITY_LABEL, describeActivity } from './activity'
 import { exportValue, displayValue } from './customFields'
 import { APPROVAL_STATE_LABEL, ASSIGNMENT_LABEL, PRIORITY_LABEL, WORK_STATUS_LABEL } from './status'
-import { daysBetween, durationMinutes, minutesByLocalDay, toZoned } from './time'
+import { daysBetween, minutesByLocalDay, scheduledMinutes, toZoned } from './time'
 import { availableMinutes, isConfirmedFor, plannedByDay } from './utilization'
 
 export interface ExportInput {
@@ -107,7 +107,7 @@ export async function buildWorkbook(input: ExportInput): Promise<Workbook> {
       date: new Date(Date.UTC(start.year, start.month - 1, start.day)),
       start: wallClock(t.start_at, zone),
       end: wallClock(t.end_at, zone),
-      duration: durationMinutes(t.start_at, t.end_at) / 60,
+      duration: scheduledMinutes(t.start_at, t.end_at, zone) / 60,
       owners: safeText(
         t.assignments
           .map((a) => nameOf(a.user_id) + (a.approval_status === 'accepted' ? '' : ` (${ASSIGNMENT_LABEL[a.approval_status]})`))
