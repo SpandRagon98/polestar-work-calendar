@@ -25,7 +25,7 @@ const ROLE_LABEL: Record<Role, string> = { admin: 'Admin', contributor: 'Contrib
 const WEEKDAYS = ['M', 'T', 'W', 'T', 'F', 'S', 'S']
 const DAY_NAMES = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
 const ROLE_HINT: Record<Role, string> = {
-  admin: 'Admins can edit any task and manage the team.',
+  admin: 'Admins can edit any task and manage the team. Events they create for others need no acceptance.',
   contributor: 'Contributors plan their own work, see the team calendar and answer tickets.',
   requester: 'Requesters only see the Tickets page: they raise tickets and follow their progress.',
 }

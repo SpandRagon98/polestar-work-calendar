@@ -129,7 +129,7 @@ export function CalendarPage() {
   const newTaskNow = () => {
     const base = DateTime.now().setZone(zone)
     const start = base.minute < 30 ? base.set({ minute: 30, second: 0, millisecond: 0 }) : base.plus({ hours: 1 }).startOf('hour')
-    newTaskAt(start.toJSDate(), start.plus({ hours: 1 }).toJSDate())
+    newTaskAt(start.toJSDate(), start.plus({ minutes: 30 }).toJSDate())
   }
 
   const followUp = (t: Task) => {
@@ -184,6 +184,7 @@ export function CalendarPage() {
       <div className="flex min-h-0 flex-1 flex-col">
         <TopBar
           title="Work Calendar"
+          compactTitle
           actions={
             <>
               {dates.length ? (
@@ -350,6 +351,7 @@ export function CalendarPage() {
         onCreated={async (id) => {
           setDraft(null)
           await refresh(id)
+          void reload() // a repeating event adds several tasks
         }}
       />
     </>

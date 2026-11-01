@@ -71,7 +71,7 @@ export function AppShell({ route, navigate, onSignOut, reloadMe, children }: Pro
         const t = n.task
         const from = people.get(t.requester_id ?? t.created_by ?? '')?.name ?? 'A teammate'
         const open = () => navigate('tickets', { open: t.id })
-        toast(`New ticket from ${from}: “${t.title}”. It goes on your calendar once you accept.`, 'notify', {
+        toast(`New ${t.series_id ? 'repeating ' : ''}ticket from ${from}: “${t.title}”. It goes on your calendar once you accept.`, 'notify', {
           label: 'Review',
           onClick: open,
         })
@@ -303,7 +303,18 @@ function RailItem({
 // ── Top bar ────────────────────────────────────────────────────────────────
 
 /** Page header: title on the left, page actions, then notifications and the account menu. */
-export function TopBar({ title, actions, leading }: { title: ReactNode; actions?: ReactNode; leading?: ReactNode }) {
+export function TopBar({
+  title,
+  actions,
+  leading,
+  compactTitle,
+}: {
+  title: ReactNode
+  actions?: ReactNode
+  leading?: ReactNode
+  /** Phones: leave the title to screen readers when the bar is full of controls. */
+  compactTitle?: boolean
+}) {
   const { me, isMobile, zone } = useApp()
   const shell = useShell()
   const [menuOpen, setMenuOpen] = useState(false)
@@ -313,7 +324,7 @@ export function TopBar({ title, actions, leading }: { title: ReactNode; actions?
     <header className="flex h-16 shrink-0 items-center gap-2 border-b border-line bg-ivory px-4 md:gap-3 md:px-6">
       {isMobile ? <Logo compact /> : null}
       {leading}
-      <h1 className="min-w-0 truncate font-display text-base font-bold text-ink md:text-[17px]">{title}</h1>
+      <h1 className={cx('min-w-0 truncate font-display text-base font-bold text-ink md:text-[17px]', compactTitle && 'max-md:sr-only')}>{title}</h1>
       <span className="flex-1" />
       {actions}
       {isMobile && !isRequester ? <MobileNavSwitch /> : null}

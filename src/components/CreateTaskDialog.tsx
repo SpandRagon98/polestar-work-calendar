@@ -4,7 +4,7 @@ import { useApp } from '../context'
 import { useTaskForm, type CreateDraft } from '../hooks/useTaskForm'
 import { CustomFieldEditor } from './CustomFieldEditor'
 import { OwnerSelector } from './OwnerSelector'
-import { FormError, OwnerNotes, PriorityField, TimeFields } from './TaskFormParts'
+import { FormError, OwnerNotes, PriorityField, RepeatFields, TimeFields } from './TaskFormParts'
 import { useFeedback } from './ui/feedback'
 import { Button, Collapse, Dialog, cx } from './ui/primitives'
 
@@ -40,7 +40,8 @@ function CreateTaskForm({ draft, categories, onClose, onCreated }: { draft: Crea
     ev.preventDefault()
     const id = await form.submit()
     if (!id) return
-    toast(form.isRequest ? 'Ticket sent — it’s added to calendars once accepted.' : 'Task created.')
+    const n = form.repeat ? `${form.repeatDates.length} events` : null
+    toast(form.isRequest ? `${n ?? 'Ticket'} sent — added to calendars once accepted.` : n ? `${n} created.` : 'Task created.')
     onCreated(id)
   }
 
@@ -76,7 +77,10 @@ function CreateTaskForm({ draft, categories, onClose, onCreated }: { draft: Crea
           />
         </div>
 
-        <TimeFields form={form} />
+        <div className="space-y-3">
+          <TimeFields form={form} />
+          {!draft.parentTask ? <RepeatFields form={form} /> : null}
+        </div>
 
         <div>
           <span className="label">Owners</span>

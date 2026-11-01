@@ -317,6 +317,80 @@ input[type='range'].pw-range::-moz-range-thumb {
   100% { background-position: 0 50%; }
 }
 
+/* Multi-day row and stretching across days */
+.fc .fc-timegrid-axis-cushion {
+  max-width: none;
+}
+.fc .fc-daygrid-body .fc-daygrid-day-events {
+  margin-top: 2px;
+  margin-bottom: 2px;
+  min-height: 26px;
+}
+.fc .fc-daygrid-event.pw-event {
+  margin-right: 3px;
+  margin-left: 3px;
+}
+.fc .fc-event.pw-event .fc-event-resizer {
+  z-index: 5;
+}
+.fc .fc-h-event.pw-event .fc-event-resizer {
+  top: 0;
+  bottom: 0;
+  width: 10px;
+}
+.fc .fc-h-event.pw-event .fc-event-resizer-start {
+  left: 0;
+}
+.fc .fc-h-event.pw-event .fc-event-resizer-end {
+  right: 0;
+}
+.fc .fc-v-event.pw-event .fc-event-resizer {
+  height: 7px;
+}
+.fc .fc-v-event.pw-event .fc-event-resizer-start {
+  top: 0;
+}
+.fc .fc-v-event.pw-event .fc-event-resizer-end {
+  bottom: 0;
+}
+/* A small grip shows on hover at each end that can be dragged sideways. */
+.fc .fc-h-event.pw-event .fc-event-resizer::after,
+.pw-span-handle::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 3px;
+  height: 14px;
+  border-radius: 999px;
+  background: var(--color-maroon);
+  opacity: 0.55;
+  transform: translate(-50%, -50%);
+}
+.pw-span-handle {
+  position: absolute;
+  top: 8px;
+  bottom: 8px;
+  z-index: 4;
+  width: 9px;
+  cursor: ew-resize;
+  opacity: 0;
+  touch-action: none;
+  transition: opacity 0.12s ease;
+}
+.pw-span-handle-left {
+  left: 0;
+}
+.pw-span-handle-right {
+  right: 0;
+}
+.fc-event:hover .pw-span-handle {
+  opacity: 1;
+}
+.fc .fc-timegrid-col.pw-span-preview {
+  background-color: rgb(175 31 10 / 0.09);
+}
+
 /* ── Motion levels (set on <html data-motion>, see src/lib/motion.ts) ─────────
    lite: for machines drawing without the graphics processor. Keep quick fades
    (cheap), drop slides, scaling, lifting, glides and animated shadows. */

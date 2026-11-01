@@ -12,6 +12,7 @@ import {
   MoreHorizontal,
   PauseCircle,
   Pencil,
+  Repeat,
   RotateCcw,
   Trash2,
   UserPlus,
@@ -22,8 +23,10 @@ import type { Activity, Priority, Task, TaskPatch, WorkStatus } from '../lib/typ
 import {
   addBookmark,
   deleteTask,
+  deleteTaskSeries,
   fetchActivities,
   respondToAssignment,
+  respondToSeries,
   setTaskOwners,
   toApiError,
   updateTask,
@@ -250,6 +253,24 @@ export function TaskDrawer({ task, onClose: closeNow, refreshTask, onCreateFollo
     return () => document.removeEventListener('keydown', onKey)
   }, [onClose, menuOpen, pendingOpen, editingTime, editingOwners])
 
+  const removeSeries = async () => {
+    const ok = await confirm({
+      title: 'Delete the whole series?',
+      message: 'Every date of this repeating event, with its history, will be permanently deleted. This cannot be undone.',
+      confirmLabel: 'Delete all dates',
+      danger: true,
+    })
+    if (!ok || !task.series_id) return
+    try {
+      const n = await deleteTaskSeries(task.series_id)
+      toast(`${n} events deleted.`)
+      closeNow()
+      await refreshTask(task.id)
+    } catch (e) {
+      toast(toApiError(e).message, 'error')
+    }
+  }
+
   const minutes = durationMinutes(task.start_at, task.end_at)
   const statusOptions: { value: WorkStatus; label: string }[] = [
     { value: 'scheduled', label: 'Scheduled' },
@@ -269,7 +290,12 @@ export function TaskDrawer({ task, onClose: closeNow, refreshTask, onCreateFollo
               <Flag size={10} /> {PRIORITY_LABEL[task.priority]}
             </span>
           ) : null}
-          {task.category ? <span className="chip bg-canvas text-ash">{task.category}</span> : null}
+          {task.series_id ? (
+            <span className="chip bg-canvas text-ash">
+              <Repeat size={10} /> Repeats
+            </span>
+          ) : null}
+          {task.category ? <span className="min-w-0 truncate rounded-full bg-canvas px-2 py-0.5 text-[11px] font-semibold text-ash">{task.category}</span> : null}
           <span className="flex-1" />
           <div className="relative">
             <Button variant="ghost" size="icon" aria-label="More actions" aria-haspopup="menu" onClick={() => setMenuOpen((o) => !o)}>
@@ -295,6 +321,11 @@ export function TaskDrawer({ task, onClose: closeNow, refreshTask, onCreateFollo
                 {canDelete(task, me) ? (
                   <MenuItem danger icon={<Trash2 size={15} />} onClick={() => (setMenuOpen(false), void remove())}>
                     Delete permanently
+                  </MenuItem>
+                ) : null}
+                {task.series_id && canDelete(task, me) ? (
+                  <MenuItem danger icon={<Repeat size={15} />} onClick={() => (setMenuOpen(false), void removeSeries())}>
+                    Delete whole series
                   </MenuItem>
                 ) : null}
                 {!editable && !canDelete(task, me) ? <p className="px-3 py-2 text-xs text-stone">View only</p> : null}
@@ -359,6 +390,13 @@ export function TaskDrawer({ task, onClose: closeNow, refreshTask, onCreateFollo
           people={people}
           activities={activities}
           onRespond={respond}
+          onAcceptSeries={async () => {
+            if (!task.series_id) return
+            await mutate(async () => {
+              const n = await respondToSeries(task.series_id!, 'accept')
+              toast(`Accepted ${n} date${n === 1 ? '' : 's'} — they’re on your calendar.`)
+            })
+          }}
           onUseTime={async (s, e) => {
             await patch({ start_at: s, end_at: e }, 'Time updated — owners will be asked again.')
           }}
@@ -410,7 +448,11 @@ export function TaskDrawer({ task, onClose: closeNow, refreshTask, onCreateFollo
           {editingOwners ? (
             <div className="anim-pop space-y-2">
               <OwnerSelector value={ownerDraft} onChange={setOwnerDraft} people={profiles} meId={me.user_id} />
-              <p className="text-[11px] text-stone">New owners must accept before the work counts on their calendar.</p>
+              <p className="text-[11px] text-stone">
+                {me.role === 'admin'
+                  ? 'As an admin, people you add go straight onto their calendar.'
+                  : 'New owners must accept before the work counts on their calendar.'}
+              </p>
               <div className="flex justify-end gap-1.5">
                 <Button size="sm" variant="ghost" onClick={() => setEditingOwners(false)}>
                   Cancel

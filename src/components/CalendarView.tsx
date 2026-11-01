@@ -7,8 +7,7 @@ import type { DateSelectArg, EventClickArg, EventDropArg, EventInput, EventMount
 import type { EventResizeDoneArg } from '@fullcalendar/interaction'
 import type { Profile, Task } from '../lib/types'
 import { canReschedule } from '../lib/permissions'
-import { displayState, STATE_LABEL } from '../lib/status'
-import { formatTimeRange } from '../lib/time'
+import { barToTimes, dayRowSelection, isMultiDay, shiftDate, spanDates, stretchToDate } from '../lib/time'
 import { EventContent } from './EventContent'
 import { motionLevel } from '../lib/motion'
 
@@ -39,8 +38,11 @@ interface Props {
 
 type MoveArg = Pick<EventDropArg, 'event' | 'revert'>
 
-/** Save a drag or resize; if the save fails the event snaps back to where it was. */
-export async function persistMove(arg: MoveArg, save: Props['onReschedule']): Promise<boolean> {
+/**
+ * Save a drag or resize; if the save fails the event snaps back to where it was.
+ * Multi-day bars change days only: the event keeps its start and end times of day.
+ */
+export async function persistMove(arg: MoveArg, save: Props['onReschedule'], zone = 'UTC'): Promise<boolean> {
   const task = arg.event.extendedProps.task as Task | undefined
   const { start, end } = arg.event
   if (!task || !start || !end) {
@@ -48,12 +50,81 @@ export async function persistMove(arg: MoveArg, save: Props['onReschedule']): Pr
     return false
   }
   try {
-    await save(task, start, end)
+    if (arg.event.allDay) {
+      const t = barToTimes(task.start_at, task.end_at, zone, arg.event.startStr.slice(0, 10), arg.event.endStr.slice(0, 10))
+      await save(task, new Date(t.start_at), new Date(t.end_at))
+    } else {
+      await save(task, start, end)
+    }
     return true
   } catch {
     arg.revert()
     return false
   }
+}
+
+/**
+ * Left or right edge of a timed event: drag it sideways onto another day to make
+ * the event span those days. Native listeners stop FullCalendar treating the press
+ * as a move of the whole event; the columns in range are tinted while dragging.
+ */
+function SpanHandle({ side, date, onDone }: { side: 'left' | 'right'; date: string; onDone: (date: string) => void }) {
+  const el = useRef<HTMLSpanElement>(null)
+  const done = useRef(onDone)
+  done.current = onDone
+
+  useEffect(() => {
+    const node = el.current
+    if (!node) return
+    const stop = (e: Event) => e.stopPropagation()
+    const columnAt = (x: number, y: number) =>
+      document
+        .elementsFromPoint(x, y)
+        .find((n) => n.matches('.fc-timegrid-col[data-date]'))
+        ?.getAttribute('data-date') ?? null
+    const paint = (hover: string | null) => {
+      document.querySelectorAll<HTMLElement>('.fc-timegrid-col[data-date]').forEach((c) => {
+        const d = c.dataset.date!
+        const inRange = hover !== null && d >= (hover < date ? hover : date) && d <= (hover > date ? hover : date)
+        c.classList.toggle('pw-span-preview', inRange)
+      })
+    }
+    const onDown = (e: PointerEvent) => {
+      e.stopPropagation()
+      e.preventDefault()
+      node.setPointerCapture(e.pointerId)
+      let hover: string | null = date
+      const onMove = (m: PointerEvent) => {
+        const next = columnAt(m.clientX, m.clientY)
+        if (next && next !== hover) {
+          hover = next
+          paint(hover)
+        }
+      }
+      const finish = (u: PointerEvent) => {
+        node.removeEventListener('pointermove', onMove)
+        node.removeEventListener('pointerup', finish)
+        node.removeEventListener('pointercancel', finish)
+        paint(null)
+        if (u.type === 'pointerup' && hover && hover !== date) done.current(hover)
+      }
+      node.addEventListener('pointermove', onMove)
+      node.addEventListener('pointerup', finish)
+      node.addEventListener('pointercancel', finish)
+    }
+    node.addEventListener('pointerdown', onDown)
+    node.addEventListener('mousedown', stop)
+    node.addEventListener('touchstart', stop)
+    node.addEventListener('click', stop)
+    return () => {
+      node.removeEventListener('pointerdown', onDown)
+      node.removeEventListener('mousedown', stop)
+      node.removeEventListener('touchstart', stop)
+      node.removeEventListener('click', stop)
+    }
+  }, [date])
+
+  return <span ref={el} aria-hidden title="Drag sideways to span more days" className={`pw-span-handle pw-span-handle-${side}`} />
 }
 
 export const CalendarView = forwardRef<CalendarHandle, Props>(function CalendarView(props, ref) {
@@ -128,19 +199,30 @@ export const CalendarView = forwardRef<CalendarHandle, Props>(function CalendarV
 
   const events = useMemo<EventInput[]>(
     () =>
-      tasks.map((t) => ({
-        id: t.id,
-        title: t.title,
-        start: t.start_at,
-        end: t.end_at,
-        editable: canReschedule(t, me),
-        classNames: canReschedule(t, me) ? ['pw-event', 'pw-movable'] : ['pw-event'],
-        extendedProps: { task: t },
-      })),
-    [tasks, me],
+      tasks.map((t) => {
+        // Multi-day events are bars in the top row, resized by their left and right ends.
+        const multi = isMultiDay(t.start_at, t.end_at, zone)
+        const span = multi ? spanDates(t.start_at, t.end_at, zone) : null
+        return {
+          id: t.id,
+          title: t.title,
+          allDay: multi,
+          start: span ? span.first : t.start_at,
+          end: span ? shiftDate(span.last, 1) : t.end_at,
+          editable: canReschedule(t, me),
+          classNames: canReschedule(t, me) ? ['pw-event', 'pw-movable'] : ['pw-event'],
+          extendedProps: { task: t },
+        }
+      }),
+    [tasks, me, zone],
   )
 
-  const onMove = (arg: EventDropArg | EventResizeDoneArg) => persistMove(arg, latest.current.onReschedule)
+  const onMove = (arg: EventDropArg | EventResizeDoneArg) => persistMove(arg, latest.current.onReschedule, latest.current.zone)
+
+  const stretch = (task: Task, side: 'left' | 'right', date: string) => {
+    const t = stretchToDate(task.start_at, task.end_at, latest.current.zone, side, date)
+    latest.current.onReschedule(task, new Date(t.start_at), new Date(t.end_at)).catch(() => undefined) // already reported
+  }
 
   return (
     <div ref={box} className="h-full">
@@ -152,7 +234,9 @@ export const CalendarView = forwardRef<CalendarHandle, Props>(function CalendarV
       headerToolbar={false}
       height="100%"
       firstDay={1}
-      allDaySlot={false}
+      allDaySlot
+      allDayText="Days"
+      dayMaxEventRows={3}
       nowIndicator
       slotDuration="00:30:00"
       snapDuration="00:30:00"
@@ -168,7 +252,8 @@ export const CalendarView = forwardRef<CalendarHandle, Props>(function CalendarV
       longPressDelay={350}
       eventLongPressDelay={350}
       selectLongPressDelay={350}
-      eventResizableFromStart={false}
+      eventResizableFromStart
+      eventAllow={(span, moving) => !moving || span.allDay === moving.allDay}
       eventDurationEditable
       eventMinHeight={22}
       slotEventOverlap={false}
@@ -185,7 +270,9 @@ export const CalendarView = forwardRef<CalendarHandle, Props>(function CalendarV
       }}
       select={(arg: DateSelectArg) => {
         // A single click selects one 30-minute slot, which is the default task length.
-        latest.current.onSelectRange(arg.start, arg.end)
+        // Dragging across days in the top row sets up a multi-day event.
+        const range = arg.allDay ? dayRowSelection(arg.startStr.slice(0, 10), arg.endStr.slice(0, 10), latest.current.zone) : arg
+        latest.current.onSelectRange(range.start, range.end)
         arg.view.calendar.unselect()
       }}
       eventClick={(arg: EventClickArg) => {
@@ -212,12 +299,6 @@ export const CalendarView = forwardRef<CalendarHandle, Props>(function CalendarV
         }
         el.tabIndex = 0
         el.setAttribute('role', 'button')
-        el.setAttribute(
-          'aria-label',
-          `${task.title}, ${formatTimeRange(task.start_at, task.end_at, latest.current.zone)}, ${
-            STATE_LABEL[displayState(task, latest.current.me.user_id)]
-          }, ${task.progress_percent}% complete`,
-        )
         el.onkeydown = (e) => {
           if (e.key === 'Enter' || e.key === ' ') {
             e.preventDefault()
@@ -231,11 +312,30 @@ export const CalendarView = forwardRef<CalendarHandle, Props>(function CalendarV
         if (!task) {
           return (
             <div className="pw-event-body pw-st-scheduled h-full px-1.5 pt-1 text-[11px] font-semibold">
-              New task · {arg.timeText}
+              New task{arg.timeText ? ` · ${arg.timeText}` : ''}
             </div>
           )
         }
-        return <EventContent task={task} meId={me.user_id} zone={zone} people={people} now={now} />
+        const stretchable = !arg.event.allDay && !isMobile && arg.view.type === 'timeGridWeek' && canReschedule(task, me)
+        const date = spanDates(task.start_at, task.end_at, zone)
+        return (
+          <EventContent
+            task={task}
+            meId={me.user_id}
+            zone={zone}
+            people={people}
+            now={now}
+            bar={arg.event.allDay}
+            handles={
+              stretchable ? (
+                <>
+                  <SpanHandle side="left" date={date.first} onDone={(d) => stretch(task, 'left', d)} />
+                  <SpanHandle side="right" date={date.last} onDone={(d) => stretch(task, 'right', d)} />
+                </>
+              ) : null
+            }
+          />
+        )
       }}
     />
     </div>

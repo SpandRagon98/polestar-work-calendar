@@ -82,3 +82,64 @@ export function formatRelative(iso: string, zone: string): string {
   if (dt.hasSame(now, 'year')) return dt.toFormat('d LLL, h:mm a')
   return dt.toFormat('d LLL yyyy, h:mm a')
 }
+
+export const shiftDate = (date: string, days: number) => DateTime.fromISO(date).plus({ days }).toISODate()!
+
+/** First and last local calendar dates an event touches (an end at exactly midnight belongs to the day before). */
+export function spanDates(start: string, end: string, zone: string): { first: string; last: string } {
+  return {
+    first: toZoned(start, zone).toISODate()!,
+    last: toZoned(end, zone).minus({ milliseconds: 1 }).toISODate()!,
+  }
+}
+
+/**
+ * A true multi-day event, shown as a bar across days. A short overnight task
+ * (say 10 PM–2 AM) stays on the time grid.
+ */
+export function isMultiDay(start: string, end: string, zone: string): boolean {
+  const { first, last } = spanDates(start, end, zone)
+  return first !== last && durationMinutes(start, end) >= 12 * 60
+}
+
+/**
+ * Move an event onto new first/last dates, keeping its start and end times of day.
+ * If that would end before it starts (shrinking to one day), it keeps a sensible length.
+ */
+export function withDates(start: string, end: string, zone: string, first: string, last: string): { start_at: string; end_at: string } {
+  const s = toZoned(start, zone)
+  const e = toZoned(end, zone)
+  const newStart = DateTime.fromISO(first, { zone }).set({ hour: s.hour, minute: s.minute })
+  // An end at midnight really means "the end of the last day".
+  const endsAtMidnight = e.hour === 0 && e.minute === 0
+  let newEnd = DateTime.fromISO(endsAtMidnight ? shiftDate(last, 1) : last, { zone }).set({ hour: e.hour, minute: e.minute })
+  if (newEnd <= newStart) newEnd = newStart.plus({ minutes: Math.min(durationMinutes(start, end), 60) })
+  return { start_at: newStart.toUTC().toISO()!, end_at: newEnd.toUTC().toISO()! }
+}
+
+/** Stretch one edge of an event to another day; the opposite edge stays put and the edges can't cross. */
+export function stretchToDate(
+  start: string,
+  end: string,
+  zone: string,
+  side: 'left' | 'right',
+  date: string,
+): { start_at: string; end_at: string } {
+  const { first, last } = spanDates(start, end, zone)
+  return side === 'right'
+    ? withDates(start, end, zone, first, date < first ? first : date)
+    : withDates(start, end, zone, date > last ? last : date, last)
+}
+
+/** Dragging across days in the top row of the calendar: 9–6 across those days, or a default slot for one day. */
+export function dayRowSelection(startStr: string, endExclusiveStr: string, zone: string): { start: Date; end: Date } {
+  const last = shiftDate(endExclusiveStr, -1)
+  const start = DateTime.fromISO(startStr, { zone }).set({ hour: 9 })
+  const end = last === startStr ? start.plus({ minutes: 30 }) : DateTime.fromISO(last, { zone }).set({ hour: 18 })
+  return { start: start.toJSDate(), end: end.toJSDate() }
+}
+
+/** The bar's inclusive last date → the event's new times, after a drag or resize in the top row. */
+export function barToTimes(start: string, end: string, zone: string, firstStr: string, endExclusiveStr: string) {
+  return withDates(start, end, zone, firstStr, shiftDate(endExclusiveStr, -1))
+}

@@ -5,7 +5,7 @@ import { ACTIVITY_LABEL, describeActivity } from './activity'
 import { exportValue, displayValue } from './customFields'
 import { APPROVAL_STATE_LABEL, ASSIGNMENT_LABEL, PRIORITY_LABEL, WORK_STATUS_LABEL } from './status'
 import { daysBetween, durationMinutes, minutesByLocalDay, toZoned } from './time'
-import { availableMinutes, isConfirmedFor } from './utilization'
+import { availableMinutes, isConfirmedFor, plannedByDay } from './utilization'
 
 export interface ExportInput {
   tasks: Task[]
@@ -162,7 +162,7 @@ export async function buildWorkbook(input: ExportInput): Promise<Workbook> {
       for (const t of tasks) {
         const a = t.assignments.find((x) => x.user_id === uid)
         if (!a) continue
-        const minutes = minutesByLocalDay(t.start_at, t.end_at, userZone).get(date)
+        const minutes = (profile ? plannedByDay(t, profile, userZone) : minutesByLocalDay(t.start_at, t.end_at, userZone)).get(date)
         if (!minutes || !dateSet.has(date)) continue
         any = true
         const confirmed = isConfirmedFor(t, uid)

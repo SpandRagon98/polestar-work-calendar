@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
 import { DateTime } from 'luxon'
 import type { CustomField, Priority, Task } from '../lib/types'
-import { createTask, fetchOverlapping, toApiError } from '../lib/api'
+import { createTask, createTaskSeries, fetchOverlapping, toApiError } from '../lib/api'
 import { validateFields } from '../lib/customFields'
-import { durationMinutes, fromLocalInputs, toLocalInputs } from '../lib/time'
+import { buildOccurrences, MAX_OCCURRENCES, occurrenceDates, type RepeatPattern } from '../lib/recurrence'
+import { durationMinutes, fromLocalInputs, isMultiDay, shiftDate, toLocalInputs } from '../lib/time'
 import { useApp } from '../context'
 
 export interface CreateDraft {
@@ -36,13 +37,36 @@ export function useTaskForm(draft: CreateDraft, defaultOwners: string[]) {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [conflicts, setConflicts] = useState<Task[]>([])
+  const [repeat, setRepeatRaw] = useState(false)
+  const [repeatPattern, setRepeatPattern] = useState<RepeatPattern>('daily')
+  const [repeatUntil, setRepeatUntil] = useState('')
 
   const startIso = fromLocalInputs(startDate, startTime, zone)
   const endIso = fromLocalInputs(endDate, endTime, zone)
   const timeInvalid = !startIso || !endIso || new Date(endIso) <= new Date(startIso)
   const minutes = timeInvalid ? 0 : durationMinutes(startIso!, endIso!)
   const others = owners.filter((o) => o !== me.user_id)
-  const isRequest = others.length > 0
+  // Admins assign directly; anyone else needs each other owner to accept.
+  const isRequest = others.length > 0 && me.role !== 'admin'
+  const directAssign = others.length > 0 && me.role === 'admin'
+
+  const setRepeat = (on: boolean) => {
+    setRepeatRaw(on)
+    if (on && (!repeatUntil || repeatUntil <= startDate)) setRepeatUntil(shiftDate(startDate, repeatPattern === 'weekly' ? 28 : 6))
+  }
+  const repeatDates = useMemo(
+    () => (repeat ? occurrenceDates(startDate, repeatUntil, repeatPattern) : []),
+    [repeat, startDate, repeatUntil, repeatPattern],
+  )
+  const repeatError = !repeat
+    ? null
+    : !timeInvalid && isMultiDay(startIso!, endIso!, zone)
+      ? 'Repeating works for events within one day. Shorten the event, or turn off Repeat.'
+      : repeatDates.length > MAX_OCCURRENCES
+        ? `That’s more than ${MAX_OCCURRENCES} events. Choose an earlier end date.`
+        : repeatDates.length < 2
+          ? 'Choose an end date that gives at least two events.'
+          : null
 
   /** Moving a same-day task's date moves its end date with it. */
   const setStartDate = (v: string) => {
@@ -94,9 +118,10 @@ export function useTaskForm(draft: CreateDraft, defaultOwners: string[]) {
     if (owners.length === 0) return fail('Choose at least one person.')
     const fieldErr = validateFields(fields)
     if (fieldErr) return fail(fieldErr)
+    if (repeatError) return fail(repeatError)
     setBusy(true)
     try {
-      return await createTask({
+      const input = {
         title: title.trim(),
         description: description.trim() || undefined,
         start_at: startIso!,
@@ -105,10 +130,22 @@ export function useTaskForm(draft: CreateDraft, defaultOwners: string[]) {
         category: category.trim() || undefined,
         custom_fields: fields,
         owner_ids: owners,
-        parent_task_id: draft.parentTask?.id,
-      })
+      }
+      if (repeat) {
+        const ids = await createTaskSeries(
+          input,
+          buildOccurrences({ startDate, startTime, endDate, endTime, until: repeatUntil, pattern: repeatPattern, zone }),
+        )
+        return ids[0]
+      }
+      return await createTask({ ...input, parent_task_id: draft.parentTask?.id })
     } catch (err) {
-      return fail(toApiError(err).message)
+      const message = toApiError(err).message
+      return fail(
+        /create_task_series/.test(message)
+          ? 'Repeating events need a one-time database update: run supabase/migrations/20261101000000_admin_direct_and_series.sql in the Supabase SQL Editor.'
+          : message,
+      )
     } finally {
       setBusy(false)
     }
@@ -124,7 +161,8 @@ export function useTaskForm(draft: CreateDraft, defaultOwners: string[]) {
     startDate, setStartDate, startTime, setStartTime,
     endDate, setEndDate, endTime, setEndTime,
     setDuration, minutes, timeInvalid,
-    owners, setOwners, others, isRequest,
+    owners, setOwners, others, isRequest, directAssign,
+    repeat, setRepeat, repeatPattern, setRepeatPattern, repeatUntil, setRepeatUntil, repeatDates, repeatError,
     description, setDescription,
     priority, setPriority,
     category, setCategory,

@@ -49,6 +49,8 @@ export interface Task {
   pending_reason: string | null
   custom_fields: CustomField[]
   parent_task_id: string | null
+  /** Shared by every occurrence of a recurring event. */
+  series_id?: string | null
   version: number
   completed_at: string | null
   created_at: string

@@ -1,6 +1,6 @@
 import { DateTime } from 'luxon'
 import type { Profile, Task } from './types'
-import { minutesByLocalDay } from './time'
+import { isMultiDay, minutesByLocalDay } from './time'
 
 /**
  * Work that counts toward utilization: a confirmed (not tentative) task that is not
@@ -15,6 +15,21 @@ export function isConfirmedFor(task: Task, userId: string): boolean {
 export function availableMinutes(profile: Pick<Profile, 'capacity_minutes' | 'work_days'>, isoDate: string): number {
   const weekday = DateTime.fromISO(isoDate).weekday // 1 = Monday … 7 = Sunday
   return profile.work_days.includes(weekday) ? profile.capacity_minutes : 0
+}
+
+/**
+ * Planned minutes per local day for one person. A multi-day event runs around the
+ * clock on paper, so each day counts at most that person's capacity for the day
+ * (none on non-working days) rather than 24 hours.
+ */
+export function plannedByDay(
+  task: Pick<Task, 'start_at' | 'end_at'>,
+  profile: Pick<Profile, 'capacity_minutes' | 'work_days'>,
+  zone: string,
+): Map<string, number> {
+  const minutes = minutesByLocalDay(task.start_at, task.end_at, zone)
+  if (!isMultiDay(task.start_at, task.end_at, zone)) return minutes
+  return new Map([...minutes].map(([date, m]) => [date, Math.min(m, availableMinutes(profile, date))]))
 }
 
 export interface DayUtilization {
@@ -52,7 +67,7 @@ export function computeUtilization(
   const mine = tasks.filter((t) => isConfirmedFor(t, profile.user_id))
   const perDay = new Map<string, { minutes: number; taskIds: string[] }>()
   for (const t of mine) {
-    for (const [date, minutes] of minutesByLocalDay(t.start_at, t.end_at, zone)) {
+    for (const [date, minutes] of plannedByDay(t, profile, zone)) {
       const entry = perDay.get(date) ?? { minutes: 0, taskIds: [] }
       entry.minutes += minutes
       entry.taskIds.push(t.id)

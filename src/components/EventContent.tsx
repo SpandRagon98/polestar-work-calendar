@@ -1,8 +1,9 @@
-import { AlertCircle, Bookmark, Flag, Hourglass } from 'lucide-react'
+import { useEffect, useRef, type ReactNode } from 'react'
+import { AlertCircle, Bookmark, Flag, Hourglass, Repeat } from 'lucide-react'
 import type { Profile, Task } from '../lib/types'
 import { displayState, needsUpdate, progressColor, initials, avatarColor, STATE_LABEL } from '../lib/status'
 import { displayValue } from '../lib/customFields'
-import { toZoned } from '../lib/time'
+import { formatTimeRange, toZoned } from '../lib/time'
 
 interface Props {
   task: Task
@@ -10,10 +11,14 @@ interface Props {
   zone: string
   people: Map<string, Profile>
   now: Date
+  /** Render as a one-line bar for the multi-day row. */
+  bar?: boolean
+  /** Left/right edges for stretching across days. */
+  handles?: ReactNode
 }
 
-/** The visual body of one task on the time grid. */
-export function EventContent({ task, meId, zone, people, now }: Props) {
+/** The visual body of one task on the calendar. */
+export function EventContent({ task, meId, zone, people, now, bar, handles }: Props) {
   const state = displayState(task, meId)
   const stale = needsUpdate(task, now)
   const owners = task.assignments.filter((a) => a.approval_status !== 'declined')
@@ -23,9 +28,56 @@ export function EventContent({ task, meId, zone, people, now }: Props) {
   const start = toZoned(task.start_at, zone)
   const end = toZoned(task.end_at, zone)
   const time = `${start.toFormat(start.minute ? 'h:mm' : 'h')}–${end.toFormat(end.minute ? 'h:mm a' : 'h a')}`
+  // The event element is reused as the task changes, so keep its label in step.
+  const body = useRef<HTMLDivElement>(null)
+  const label = `${task.title}, ${formatTimeRange(task.start_at, task.end_at, zone)}, ${STATE_LABEL[state]}, ${task.progress_percent}% complete`
+  useEffect(() => {
+    body.current?.closest('.fc-event')?.setAttribute('aria-label', label)
+  }, [label])
+
+  const progressBar = (
+    <div className="absolute inset-x-0 bottom-0 h-[3px] bg-black/5" aria-hidden>
+      <div
+        className="h-full origin-left transition-transform duration-300 ease-out"
+        style={{ transform: `scaleX(${task.progress_percent / 100})`, background: progressColor(task.progress_percent) }}
+      />
+    </div>
+  )
+
+  if (bar) {
+    return (
+      <div ref={body} className={`pw-event-body pw-st-${state} relative flex min-h-[26px] items-center gap-1.5 overflow-hidden px-2 pb-[3px]`}>
+        {state === 'awaiting' || state === 'needs_revision' ? <Hourglass size={11} className="shrink-0 text-st-awaiting" aria-hidden /> : null}
+        <span className="pw-event-title min-w-0 truncate text-[12px] leading-tight font-semibold">{task.title}</span>
+        <span className="hidden shrink-0 text-[10.5px] text-ash sm:inline">
+          {start.toFormat('ccc h:mm a')} – {end.toFormat('ccc h:mm a')}
+        </span>
+        <span className="flex-1" />
+        {stale ? <AlertCircle size={12} className="shrink-0 text-st-pending" aria-label="Needs update" /> : null}
+        {task.priority === 'high' ? <Flag size={11} className="shrink-0 text-ember" aria-label="High priority" /> : null}
+        <span className="flex shrink-0 -space-x-1">
+          {owners.slice(0, 3).map((a) => {
+            const name = people.get(a.user_id)?.name ?? '?'
+            return (
+              <span
+                key={a.user_id}
+                title={name}
+                className="inline-flex h-[17px] w-[17px] items-center justify-center rounded-full text-[8px] font-bold text-white ring-[1.5px] ring-white"
+                style={{ background: avatarColor(a.user_id), opacity: a.approval_status === 'accepted' ? 1 : 0.55 }}
+              >
+                {initials(name)}
+              </span>
+            )
+          })}
+        </span>
+        <span className="shrink-0 text-[10px] font-semibold text-ash tabular-nums">{task.progress_percent}%</span>
+        {progressBar}
+      </div>
+    )
+  }
 
   return (
-    <div className={`pw-event-body pw-st-${state} relative flex flex-col overflow-hidden px-1.5 pt-1 pb-2`}>
+    <div ref={body} className={`pw-event-body pw-st-${state} @container relative flex flex-col overflow-hidden px-1.5 pt-1 pb-2`}>
       <div className="flex min-w-0 items-start gap-1">
         {state === 'awaiting' || state === 'needs_revision' ? (
           <Hourglass size={11} className="mt-[2px] shrink-0 text-st-awaiting" aria-hidden />
@@ -33,6 +85,7 @@ export function EventContent({ task, meId, zone, people, now }: Props) {
         <span className="pw-event-title min-w-0 flex-1 truncate text-[12px] leading-tight font-semibold">
           {task.title}
         </span>
+        {task.series_id ? <Repeat size={11} className="mt-[2px] shrink-0 text-stone" aria-label="Repeating event" /> : null}
         {stale ? <AlertCircle size={12} className="mt-px shrink-0 text-st-pending" aria-label="Needs update" /> : null}
         {task.priority === 'high' ? <Flag size={11} className="mt-[2px] shrink-0 text-ember" aria-label="High priority" /> : null}
       </div>
@@ -78,15 +131,11 @@ export function EventContent({ task, meId, zone, people, now }: Props) {
               {task.bookmark_count}
             </span>
           ) : null}
-          <span className="text-[10px] font-semibold text-ash tabular-nums">{task.progress_percent}%</span>
+          <span className="hidden text-[10px] font-semibold text-ash tabular-nums @[4.5rem]:inline">{task.progress_percent}%</span>
         </div>
       ) : null}
-      <div className="absolute inset-x-0 bottom-0 h-[3px] bg-black/5" aria-hidden>
-        <div
-          className="h-full origin-left transition-transform duration-300 ease-out"
-          style={{ transform: `scaleX(${task.progress_percent / 100})`, background: progressColor(task.progress_percent) }}
-        />
-      </div>
+      {progressBar}
+      {handles}
     </div>
   )
 }

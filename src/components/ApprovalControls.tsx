@@ -13,6 +13,7 @@ interface Props {
   people: Map<string, Profile>
   activities: Activity[]
   onRespond: (response: AssignmentResponse, opts?: { note?: string; start_at?: string; end_at?: string }) => Promise<void>
+  onAcceptSeries: () => Promise<void>
   onUseTime: (start: string, end: string) => Promise<void>
   onRemoveOwner: (userId: string) => Promise<void>
 }
@@ -30,9 +31,10 @@ export function ApprovalControls(props: Props) {
   )
 }
 
-function RespondCard({ task, me, zone, people, onRespond }: Props) {
+function RespondCard({ task, me, zone, people, onRespond, onAcceptSeries }: Props) {
   const [mode, setMode] = useState<'idle' | 'decline' | 'suggest'>('idle')
   const [busy, setBusy] = useState<AssignmentResponse | null>(null)
+  const [seriesBusy, setSeriesBusy] = useState(false)
   const [note, setNote] = useState('')
   const start = toLocalInputs(task.start_at, zone)
   const end = toLocalInputs(task.end_at, zone)
@@ -87,6 +89,23 @@ function RespondCard({ task, me, zone, people, onRespond }: Props) {
           <Button variant="primary" size="sm" loading={busy === 'accept'} onClick={() => run('accept')}>
             <Check size={14} /> Accept
           </Button>
+          {task.series_id ? (
+            <Button
+              size="sm"
+              variant="soft"
+              loading={seriesBusy}
+              onClick={async () => {
+                setSeriesBusy(true)
+                try {
+                  await onAcceptSeries()
+                } finally {
+                  setSeriesBusy(false)
+                }
+              }}
+            >
+              Accept all dates
+            </Button>
+          ) : null}
           <Button size="sm" onClick={() => setMode('suggest')}>
             <CalendarClock size={14} /> Suggest time
           </Button>

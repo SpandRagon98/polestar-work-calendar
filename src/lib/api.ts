@@ -48,6 +48,20 @@ export async function createTask(input: TaskInput): Promise<string> {
   return check(await supabase.rpc('create_task', { p: input })) as string
 }
 
+/** Create one task per occurrence, linked as a series (all or nothing). Returns the new ids. */
+export async function createTaskSeries(input: TaskInput, occurrences: { start_at: string; end_at: string }[]): Promise<string[]> {
+  return check(await supabase.rpc('create_task_series', { p: { ...input, occurrences } })) as string[]
+}
+
+/** Answer all of my pending occurrences in a series. Returns how many were answered. */
+export async function respondToSeries(seriesId: string, response: 'accept' | 'decline', note?: string): Promise<number> {
+  return check(await supabase.rpc('respond_series', { p_series: seriesId, p_response: response, p_note: note ?? null })) as number
+}
+
+export async function deleteTaskSeries(seriesId: string): Promise<number> {
+  return check(await supabase.rpc('delete_task_series', { p_series: seriesId })) as number
+}
+
 /** Returns the new version. Throws ApiError with isConflict when `version` is stale. */
 export async function updateTask(id: string, version: number, patch: TaskPatch): Promise<number> {
   return check(await supabase.rpc('update_task', { p_id: id, p_version: version, p: patch })) as number

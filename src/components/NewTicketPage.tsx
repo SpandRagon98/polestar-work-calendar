@@ -7,7 +7,7 @@ import { formatTimeRange } from '../lib/time'
 import { useShell, TopBar } from './AppShell'
 import { CustomFieldEditor } from './CustomFieldEditor'
 import { OwnerSelector } from './OwnerSelector'
-import { FormError, OwnerNotes, PriorityField, TimeFields } from './TaskFormParts'
+import { FormError, OwnerNotes, PriorityField, RepeatFields, TimeFields } from './TaskFormParts'
 import { useFeedback } from './ui/feedback'
 import { Avatar, Button, Collapse, cx } from './ui/primitives'
 
@@ -36,7 +36,8 @@ function NewTicketForm({ draft }: { draft: CreateDraft }) {
     e.preventDefault()
     const id = await form.submit()
     if (!id) return
-    toast(form.isRequest ? 'Ticket sent. It’s added to calendars once accepted.' : 'Task created on your calendar.')
+    const n = form.repeat ? `${form.repeatDates.length} events` : null
+    toast(form.isRequest ? `${n ?? 'Ticket'} sent. Added to calendars once accepted.` : `${n ?? 'Task'} created and on the calendar.`)
     shell.navigate('tickets', { tab: 'raised', open: id })
   }
 
@@ -116,7 +117,10 @@ function NewTicketForm({ draft }: { draft: CreateDraft }) {
               </Section>
 
               <Section step={3} title="When should it happen?">
-                <TimeFields form={form} durations />
+                <div className="space-y-3">
+                  <TimeFields form={form} durations />
+                  <RepeatFields form={form} />
+                </div>
               </Section>
 
               <div>

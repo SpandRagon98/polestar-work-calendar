@@ -355,3 +355,85 @@ describe('deleting people', () => {
     await fails(rpc(admin, 'admin_delete_user', [leaver, false]), 'PT404')
   })
 })
+
+describe('admins assign directly', () => {
+  it('confirms an admin-created task for several people with no approval', async () => {
+    const id = await newTask(admin, [admin, spandan, mandya])
+    expect(await task(id)).toMatchObject({ approval_state: 'confirmed', requester_id: admin })
+    expect(await assignments(id)).toEqual({ [admin]: 'accepted', [spandan]: 'accepted', [mandya]: 'accepted' })
+    expect(await activityTypes(id)).toEqual(['created'])
+  })
+
+  it('still asks when a non-admin creates a task for others', async () => {
+    const id = await newTask(spandan, [spandan, mandya])
+    expect(await task(id)).toMatchObject({ approval_state: 'awaiting_approval' })
+    expect(await assignments(id)).toEqual({ [spandan]: 'accepted', [mandya]: 'pending' })
+  })
+
+  it('accepts owners an admin adds later, but not ones a non-admin adds', async () => {
+    const byAdmin = await newTask(admin, [admin])
+    await rpc(admin, 'set_task_owners', [byAdmin, 1, [admin, mandya]])
+    expect(await assignments(byAdmin)).toEqual({ [admin]: 'accepted', [mandya]: 'accepted' })
+
+    const bySpandan = await newTask(spandan, [spandan])
+    await rpc(spandan, 'set_task_owners', [bySpandan, 1, [spandan, mandya]])
+    expect(await assignments(bySpandan)).toEqual({ [spandan]: 'accepted', [mandya]: 'pending' })
+  })
+})
+
+describe('recurring series', () => {
+  const occurrences = [2, 3, 4].map((day) => ({ start_at: at(10, 0, day), end_at: at(11, 0, day) }))
+  const series = (user: string, owners: string[]) =>
+    rpc<string[]>(user, 'create_task_series', [{ title: 'Daily sync', owner_ids: owners, occurrences }])
+
+  it('creates one linked task per date', async () => {
+    const ids = await series(spandan, [spandan])
+    expect(ids).toHaveLength(3)
+    const rows = await Promise.all(ids.map(task))
+    expect(new Set(rows.map((r) => r.series_id)).size).toBe(1)
+    expect(rows[0].series_id).not.toBeNull()
+    expect(rows.every((r) => r.approval_state === 'confirmed')).toBe(true)
+  })
+
+  it('rejects too few or too many dates, atomically', async () => {
+    await fails(rpc(spandan, 'create_task_series', [{ title: 'x', owner_ids: [spandan], occurrences: occurrences.slice(0, 1) }]), undefined, /at least two/)
+    const before = (await t.db.query<{ n: number }>(`select count(*)::int as n from public.tasks where title = 'Atomic'`)).rows[0].n
+    await fails(
+      rpc(spandan, 'create_task_series', [
+        { title: 'Atomic', owner_ids: [spandan], occurrences: [occurrences[0], { start_at: at(11), end_at: at(10) }] },
+      ]),
+      undefined,
+      /later than/,
+    )
+    expect((await t.db.query<{ n: number }>(`select count(*)::int as n from public.tasks where title = 'Atomic'`)).rows[0].n).toBe(before)
+  })
+
+  it('needs acceptance from a non-admin, and one answer can cover the whole series', async () => {
+    const ids = await series(rupam, [mandya])
+    expect(await task(ids[0])).toMatchObject({ approval_state: 'awaiting_approval' })
+    const { series_id } = await task(ids[0])
+    await rpc(mandya, 'respond_assignment', [ids[0], 'accept', null, null, null])
+    expect(await rpc(mandya, 'respond_series', [series_id, 'accept', null])).toBe(2)
+    expect((await Promise.all(ids.map(task))).every((r) => r.approval_state === 'confirmed')).toBe(true)
+    await fails(rpc(priya, 'respond_series', [series_id, 'maybe', null]), undefined, /Unknown/)
+  })
+
+  it('is confirmed immediately when an admin creates it', async () => {
+    const ids = await series(admin, [spandan, mandya])
+    expect((await Promise.all(ids.map(task))).every((r) => r.approval_state === 'confirmed')).toBe(true)
+    expect(await assignments(ids[0])).toEqual({ [spandan]: 'accepted', [mandya]: 'accepted' })
+  })
+
+  it('only lets the creator or an admin delete a series', async () => {
+    const ids = await series(spandan, [spandan])
+    const { series_id } = await task(ids[0])
+    await fails(rpc(mandya, 'delete_task_series', [series_id]), '42501')
+    expect(await rpc(admin, 'delete_task_series', [series_id])).toBe(3)
+    expect(await task(ids[1])).toBeUndefined()
+  })
+
+  it('keeps the internal insert function private', async () => {
+    await fails(t.as(spandan, `select public._insert_task('{}'::jsonb, null)`), '42501')
+    await fails(t.asAnon(`select public.create_task_series('{}'::jsonb)`), '42501')
+  })
+})

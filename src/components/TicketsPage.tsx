@@ -373,6 +373,7 @@ function TicketRow({
         <span className="truncate text-sm font-semibold text-ink">{task.title}</span>
       </span>
       <span className="mt-0.5 block truncate text-xs text-stone">
+        {task.series_id ? 'Repeats · ' : ''}
         {task.category ? `${task.category} · ` : ''}raised {formatRelative(task.created_at, zone)}
       </span>
     </span>

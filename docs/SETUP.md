@@ -37,6 +37,7 @@ Open **SQL Editor → New query**, paste each file in
 
 1. `20261029000000_init.sql` — tables, security, functions
 2. `20261030000000_admin_delete_user.sql` — lets admins delete people
+3. `20261101000000_admin_direct_and_series.sql` — admin-created events need no acceptance; repeating events
 
 When a new migration file appears in a later update, run just that file.
 
@@ -126,7 +127,7 @@ Roles:
 
 | Role | Can |
 |---|---|
-| **Admin** | Everything: view/edit all tasks, manage people, roles, capacity, working days |
+| **Admin** | Everything: events they create for others need no acceptance; view/edit all tasks, manage people, roles, capacity, working days |
 | **Contributor** | See the team calendar; create own tasks; edit tasks they own (accepted) or requested; accept/decline/suggest; request others’ time |
 | **Requester** | Only the **Tickets** page: raise tickets, follow their status, adjust them if sent back for revision |
 

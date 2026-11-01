@@ -47,8 +47,17 @@ export function useNotifications(userId: string | undefined, onNotice?: (n: Noti
       const others = u.filter((x) => x.actor_id !== userId)
       // Announce what is new since the previous load (never on the first one).
       if (known.current) {
-        for (const t of p) if (!known.current.tickets.has(t.id)) notify.current?.({ kind: 'ticket', task: t })
-        for (const x of others) if (!known.current.updates.has(x.id)) notify.current?.({ kind: 'update', update: x })
+        // A repeating event is one alert, however many dates it has.
+        const once = new Set<string>()
+        const first = (key: string) => (once.has(key) ? false : (once.add(key), true))
+        for (const t of p) {
+          if (!known.current.tickets.has(t.id) && first(t.series_id ?? t.id)) notify.current?.({ kind: 'ticket', task: t })
+        }
+        for (const x of others) {
+          if (!known.current.updates.has(x.id) && first(`${x.actor_id}|${x.activity_type}|${x.tasks.title}`)) {
+            notify.current?.({ kind: 'update', update: x })
+          }
+        }
       }
       known.current = {
         tickets: new Set([...(known.current?.tickets ?? []), ...p.map((t) => t.id)]),

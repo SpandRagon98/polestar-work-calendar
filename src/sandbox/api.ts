@@ -79,6 +79,30 @@ export async function createTask(input: TaskInput): Promise<string> {
   return id
 }
 
+export async function createTaskSeries(input: TaskInput, occurrences: { start_at: string; end_at: string }[]): Promise<string[]> {
+  const since = await stamp()
+  const [{ ids }] = await q<{ ids: string[] }>(`select public.create_task_series($1) as ids`, [{ ...input, occurrences }])
+  for (const id of ids) await changed(id, since)
+  for (const uid of input.owner_ids) emit('task_assignments', 'INSERT', { user_id: uid })
+  return ids
+}
+
+export async function respondToSeries(seriesId: string, response: 'accept' | 'decline', note?: string): Promise<number> {
+  const since = await stamp()
+  const ids = await q<{ id: string }>(`select id from public.tasks where series_id = $1`, [seriesId])
+  const [{ n }] = await q<{ n: number }>(`select public.respond_series($1, $2, $3) as n`, [seriesId, response, note ?? null])
+  for (const { id } of ids) await changed(id, since)
+  emit('task_assignments', 'UPDATE', { user_id: me() })
+  return n
+}
+
+export async function deleteTaskSeries(seriesId: string): Promise<number> {
+  const ids = await q<{ id: string }>(`select id from public.tasks where series_id = $1`, [seriesId])
+  const [{ n }] = await q<{ n: number }>(`select public.delete_task_series($1) as n`, [seriesId])
+  for (const { id } of ids) await changed(id, '', true)
+  return n
+}
+
 export async function updateTask(id: string, version: number, patch: TaskPatch): Promise<number> {
   const since = await stamp()
   const [{ v }] = await q<{ v: number }>(`select public.update_task($1, $2, $3) as v`, [id, version, patch])
