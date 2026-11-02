@@ -51,6 +51,8 @@ export interface Task {
   parent_task_id: string | null
   /** Shared by every occurrence of a recurring event. */
   series_id?: string | null
+  /** A ticket nobody has given a time yet; start_at/end_at are placeholders. */
+  unscheduled?: boolean
   version: number
   completed_at: string | null
   created_at: string
@@ -81,6 +83,9 @@ export interface TaskInput {
   owner_ids: string[]
   parent_task_id?: string
 }
+
+/** A ticket: the work and its priority. The assignees choose the time. */
+export type TicketInput = Omit<TaskInput, 'start_at' | 'end_at' | 'parent_task_id'>
 
 export type TaskPatch = Partial<
   Pick<

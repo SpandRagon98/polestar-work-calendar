@@ -25,7 +25,8 @@ export function canEdit(task: Task, me: Me): boolean {
 
 /** Unconfirmed requests can only be re-timed by whoever proposed them (or an admin). */
 export function canReschedule(task: Task, me: Me): boolean {
-  if (!canEdit(task, me)) return false
+  // An unscheduled ticket gets its time from an assignee accepting it.
+  if (task.unscheduled || !canEdit(task, me)) return false
   if (task.approval_state === 'confirmed') return true
   return me.role === 'admin' || task.created_by === me.user_id || task.requester_id === me.user_id
 }

@@ -87,7 +87,22 @@ export function Avatar({ id, name, size = 24, ring }: { id: string; name: string
 export function Logo({ compact, className }: { compact?: boolean; className?: string }) {
   const base = import.meta.env.BASE_URL
   return compact ? (
-    <img src={`${base}polestar-mark.png`} alt="Polestar Analytics" className={cx('pw-logo h-7 w-7 object-contain', className)} />
+    // Drawn, so the star stays sharp at any size and needs no white plate.
+    <svg viewBox="0 0 24 24" role="img" aria-label="Polestar Analytics" className={cx('pw-mark h-7 w-7', className)}>
+      <defs>
+        <linearGradient id="pw-star" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stopColor="#FFE07A" />
+          <stop offset="1" stopColor="#FFC21F" />
+        </linearGradient>
+      </defs>
+      <path
+        fill="url(#pw-star)"
+        stroke="#F5B400"
+        strokeWidth="0.6"
+        strokeLinejoin="round"
+        d="M12 1.6l3.05 6.7 7.3.78-5.45 4.93 1.52 7.2L12 17.53 5.58 21.2l1.52-7.2L1.65 9.08l7.3-.78z"
+      />
+    </svg>
   ) : (
     <img src={`${base}polestar-logo.png`} alt="Polestar Analytics" className={cx('pw-logo h-8 w-auto object-contain', className)} />
   )
@@ -273,7 +288,7 @@ export function Dialog({
         </div>
         <div className="flex-1 overflow-y-auto overscroll-contain px-6 py-6">{children}</div>
         {footer ? (
-          <div className="flex items-center justify-end gap-2 border-t border-line bg-canvas/50 px-6 py-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
+          <div className="flex flex-wrap items-center justify-end gap-2 border-t border-line bg-canvas/50 px-6 py-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
             {typeof footer === 'function' ? footer(close) : footer}
           </div>
         ) : null}

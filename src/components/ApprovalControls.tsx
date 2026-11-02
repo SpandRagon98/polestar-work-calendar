@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react'
-import { AlertTriangle, CalendarClock, Check, Hourglass, X } from 'lucide-react'
+import { DateTime } from 'luxon'
+import { AlertTriangle, CalendarClock, Check, Flag, Hourglass, X } from 'lucide-react'
 import type { Activity, Profile, Task } from '../lib/types'
 import { fetchOverlapping, type AssignmentResponse } from '../lib/api'
-import { myAssignment } from '../lib/status'
+import { myAssignment, PRIORITY_LABEL } from '../lib/status'
 import { formatTimeRange, fromLocalInputs, toLocalInputs } from '../lib/time'
 import { overlaps } from '../lib/utilization'
-import { Avatar, Button } from './ui/primitives'
+import { Avatar, Button, cx } from './ui/primitives'
 
 interface Props {
   task: Task
@@ -15,6 +16,8 @@ interface Props {
   activities: Activity[]
   onRespond: (response: AssignmentResponse, opts?: { note?: string; start_at?: string; end_at?: string }) => Promise<void>
   onAcceptSeries: () => Promise<void>
+  /** Give an unscheduled ticket its time, which accepts it. */
+  onSchedule: (start: string, end: string, note: string) => Promise<void>
   onUseTime: (start: string, end: string) => Promise<void>
   onRemoveOwner: (userId: string) => Promise<void>
 }
@@ -26,7 +29,7 @@ export function ApprovalControls(props: Props) {
   const isRequester = task.requester_id === me.user_id || task.created_by === me.user_id
   return (
     <>
-      {mine?.approval_status === 'pending' ? <RespondCard {...props} /> : null}
+      {mine?.approval_status === 'pending' ? task.unscheduled ? <ScheduleCard {...props} /> : <RespondCard {...props} /> : null}
       {isRequester && task.approval_state !== 'confirmed' ? <RequestStatusCard {...props} /> : null}
     </>
   )
@@ -151,6 +154,127 @@ function RespondCard({ task, me, zone, people, onRespond, onAcceptSeries }: Prop
   )
 }
 
+/** Default slot for a ticket: the next half hour today, or 10 AM on the next working day. */
+function firstSlot(zone: string) {
+  const now = DateTime.now().setZone(zone)
+  let start = now.minute < 30 ? now.set({ minute: 30, second: 0, millisecond: 0 }) : now.plus({ hours: 1 }).startOf('hour')
+  if (start.hour >= 17 || start.weekday > 5) {
+    start = now.plus({ days: 1 }).startOf('day')
+    while (start.weekday > 5) start = start.plus({ days: 1 })
+    start = start.set({ hour: 10 })
+  }
+  return { date: start.toISODate()!, start: start.toFormat('HH:mm'), end: start.plus({ hours: 1 }).toFormat('HH:mm') }
+}
+
+/** An assignee answering a ticket that has no time yet: choose one to accept, or decline. */
+function ScheduleCard({ task, me, zone, people, onRespond, onSchedule }: Props) {
+  const [first] = useState(() => firstSlot(zone))
+  const [date, setDate] = useState(first.date)
+  const [sTime, setSTime] = useState(first.start)
+  const [eTime, setETime] = useState(first.end)
+  const [note, setNote] = useState('')
+  const [declining, setDeclining] = useState(false)
+  const [busy, setBusy] = useState<'schedule' | 'decline' | null>(null)
+  const [conflicts, setConflicts] = useState<Task[]>([])
+  const requester = people.get(task.requester_id ?? task.created_by ?? '')?.name ?? 'Someone'
+  const start = fromLocalInputs(date, sTime, zone)
+  const end = fromLocalInputs(date, eTime, zone)
+  const invalid = !start || !end || new Date(end) <= new Date(start)
+
+  useEffect(() => {
+    if (invalid) return setConflicts([])
+    let alive = true
+    const id = window.setTimeout(() => {
+      fetchOverlapping([me.user_id], start!, end!, task.id)
+        .then((rows) => alive && setConflicts(rows.filter((r) => overlaps({ start_at: start!, end_at: end! }, r, zone))))
+        .catch(() => undefined)
+    }, 300)
+    return () => {
+      alive = false
+      window.clearTimeout(id)
+    }
+  }, [me.user_id, start, end, invalid, task.id, zone])
+
+  const run = async (what: 'schedule' | 'decline') => {
+    setBusy(what)
+    try {
+      if (what === 'schedule') await onSchedule(start!, end!, note)
+      else await onRespond('decline', { note })
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  return (
+    <section className="rounded-2xl border border-st-awaiting/25 bg-st-awaiting/[0.06] p-4">
+      <div className="flex items-start gap-2.5">
+        <Hourglass size={18} className="mt-0.5 shrink-0 text-st-awaiting" />
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-semibold text-ink">{requester} asked you to take this on</p>
+          <p className="mt-1 text-xs leading-relaxed text-ash">
+            <span className={cx('chip mr-1.5 align-[1px]', task.priority === 'high' ? 'bg-ember/10 text-ember' : 'bg-surface text-ash')}>
+              <Flag size={10} /> {PRIORITY_LABEL[task.priority]} priority
+            </span>
+            Choose when you’ll do it. It goes on your calendar once you accept.
+          </p>
+        </div>
+      </div>
+      {declining ? (
+        <div className="anim-pop mt-3 space-y-2">
+          <input
+            className="field h-9"
+            placeholder="Reason (optional)"
+            aria-label="Reason for declining"
+            maxLength={500}
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+          />
+          <div className="flex justify-end gap-1.5">
+            <Button size="sm" variant="ghost" onClick={() => setDeclining(false)}>
+              Back
+            </Button>
+            <Button size="sm" variant="danger" loading={busy === 'decline'} onClick={() => run('decline')}>
+              Decline ticket
+            </Button>
+          </div>
+        </div>
+      ) : (
+        <div className="mt-3 space-y-2">
+          <div className="grid grid-cols-[minmax(0,1fr)_auto_auto] gap-1.5">
+            <input type="date" aria-label="Date" className="field h-9" value={date} onChange={(e) => setDate(e.target.value)} />
+            <input type="time" aria-label="Start time" className="field h-9 w-[104px]" value={sTime} onChange={(e) => setSTime(e.target.value)} />
+            <input type="time" aria-label="End time" className="field h-9 w-[104px]" value={eTime} onChange={(e) => setETime(e.target.value)} />
+          </div>
+          {invalid ? (
+            <p className="text-xs text-st-pending">End time must be later than start time.</p>
+          ) : conflicts.length ? (
+            <p className="flex items-start gap-1.5 rounded-xl bg-surface/70 px-3 py-2 text-xs text-st-pending">
+              <AlertTriangle size={14} className="mt-px shrink-0" />
+              Overlaps with {conflicts.map((c) => `“${c.title}”`).join(', ')} on your calendar.
+            </p>
+          ) : null}
+          <input
+            className="field h-9"
+            placeholder="Note for the requester (optional)"
+            aria-label="Note"
+            maxLength={500}
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+          />
+          <div className="flex flex-wrap justify-end gap-1.5 pt-0.5">
+            <Button size="sm" variant="ghost" onClick={() => setDeclining(true)}>
+              <X size={14} /> Decline
+            </Button>
+            <Button size="sm" variant="primary" disabled={invalid} loading={busy === 'schedule'} onClick={() => run('schedule')}>
+              {busy !== 'schedule' ? <Check size={14} /> : null} Set time & accept
+            </Button>
+          </div>
+        </div>
+      )}
+    </section>
+  )
+}
+
 function RequestStatusCard({ task, me, zone, people, activities, onUseTime, onRemoveOwner }: Props) {
   const [busy, setBusy] = useState<string | null>(null)
   const others = task.assignments.filter((a) => a.user_id !== me.user_id)
@@ -163,10 +287,16 @@ function RequestStatusCard({ task, me, zone, people, activities, onUseTime, onRe
   return (
     <section className="rounded-2xl border border-st-awaiting/25 bg-st-awaiting/[0.06] p-4">
       <p className="text-sm font-semibold text-ink">
-        {task.approval_state === 'needs_revision' ? 'Your request needs revision' : 'Waiting for owners to respond'}
+        {task.approval_state === 'needs_revision'
+          ? 'Your request needs revision'
+          : task.unscheduled
+            ? 'Waiting for an assignee to choose a time'
+            : 'Waiting for owners to respond'}
       </p>
       <p className="mt-0.5 text-xs text-ash">
-        {accepted} of {others.length} accepted. The task is confirmed once everyone accepts.
+        {task.unscheduled
+          ? 'The first person to accept sets the date and time, and it goes on their calendar.'
+          : `${accepted} of ${others.length} accepted. The task is confirmed once everyone accepts.`}
       </p>
       <ul className="mt-3 space-y-2">
         {others.map((a) => {

@@ -1,10 +1,10 @@
 import type { Workbook, Worksheet } from 'exceljs'
 import { DateTime } from 'luxon'
-import type { Activity, Profile, Task } from './types'
+import type { Activity, Profile, Task, WorkStatus } from './types'
 import { ACTIVITY_LABEL, describeActivity } from './activity'
 import { exportValue, displayValue } from './customFields'
 import { APPROVAL_STATE_LABEL, ASSIGNMENT_LABEL, PRIORITY_LABEL, WORK_STATUS_LABEL } from './status'
-import { daysBetween, minutesByLocalDay, scheduledMinutes, toZoned } from './time'
+import { daysBetween, minutesByLocalDay, scheduledMinutes, taskSessions, toZoned } from './time'
 import { availableMinutes, isConfirmedFor, plannedByDay } from './utilization'
 
 export interface ExportInput {
@@ -52,10 +52,242 @@ function styleSheet(ws: Worksheet) {
   }
 }
 
+/** Tasks on the calendar between two dates (tickets nobody has given a time yet are left out). */
 export function tasksInRange(tasks: Task[], fromDate: string, toDate: string, zone: string): Task[] {
   const start = DateTime.fromISO(fromDate, { zone }).startOf('day').toMillis()
   const end = DateTime.fromISO(toDate, { zone }).plus({ days: 1 }).startOf('day').toMillis()
-  return tasks.filter((t) => new Date(t.start_at).getTime() < end && new Date(t.end_at).getTime() > start)
+  return tasks.filter((t) => !t.unscheduled && new Date(t.start_at).getTime() < end && new Date(t.end_at).getTime() > start)
+}
+
+// ── Gantt chart ──────────────────────────────────────────────────────────────
+
+/** Bar colour, a light tint for the status cell, and readable text on the tint. */
+export const GANTT_STATUS: Record<WorkStatus, { label: string; bar: string; tint: string; text: string }> = {
+  completed: { label: 'Completed', bar: 'FF3DA35D', tint: 'FFDFF2E5', text: 'FF1E6B3A' },
+  in_progress: { label: 'In progress', bar: 'FFF5C342', tint: 'FFFDF3D3', text: 'FF7A5600' },
+  pending: { label: 'Pending', bar: 'FFF0983A', tint: 'FFFDE6CC', text: 'FF8F4A00' },
+  scheduled: { label: 'Not started', bar: 'FFB9B4AE', tint: 'FFEFEDEA', text: 'FF57524F' },
+  cancelled: { label: 'Cancelled', bar: 'FFE2DFDB', tint: 'FFF4F2F0', text: 'FF8E8984' },
+}
+
+const solid = (argb: string) => ({ type: 'pattern' as const, pattern: 'solid' as const, fgColor: { argb } })
+const thin = (argb: string) => ({ style: 'thin' as const, color: { argb } })
+
+interface Slot {
+  start: number
+  end: number
+  /** Header line above (month, or the day when the columns are hours). */
+  group: string
+  label: string
+  weekend: boolean
+  today: boolean
+}
+
+/** Day columns, or hour columns when the range is one or two days. */
+export function ganttSlots(tasks: Task[], fromDate: string, toDate: string, zone: string, now = DateTime.now()): Slot[] {
+  const first = DateTime.fromISO(fromDate, { zone }).startOf('day')
+  const days = daysBetween(fromDate, DateTime.fromISO(toDate).plus({ days: 1 }).toISODate()!).map((d) => DateTime.fromISO(d, { zone }))
+  const todayIso = now.setZone(zone).toISODate()
+  if (days.length > 2) {
+    return days.map((d) => ({
+      start: d.toMillis(),
+      end: d.plus({ days: 1 }).toMillis(),
+      group: d.toFormat('LLLL yyyy'),
+      label: `${d.toFormat('ccccc')}\n${d.day}`,
+      weekend: d.weekday > 5,
+      today: d.toISODate() === todayIso,
+    }))
+  }
+  // Hours: from the earliest start to the latest end on these days (at least 9 to 6).
+  let from = 9
+  let to = 18
+  const rangeEnd = first.plus({ days: days.length }).toMillis()
+  for (const t of tasks) {
+    for (const s of taskSessions(t.start_at, t.end_at, zone)) {
+      const a = Math.max(new Date(s.start_at).getTime(), first.toMillis())
+      const b = Math.min(new Date(s.end_at).getTime(), rangeEnd)
+      if (b <= a) continue
+      const sa = DateTime.fromMillis(a, { zone })
+      const sb = DateTime.fromMillis(b, { zone })
+      from = Math.min(from, sa.hour)
+      to = Math.max(to, sb.hasSame(sa, 'day') ? Math.ceil(sb.hour + sb.minute / 60) : 24)
+    }
+  }
+  return days.flatMap((d) =>
+    Array.from({ length: to - from }, (_, i) => {
+      const h = d.set({ hour: from + i })
+      return {
+        start: h.toMillis(),
+        end: h.plus({ hours: 1 }).toMillis(),
+        group: d.toFormat('cccc d LLLL'),
+        label: h.toFormat('ha').toLowerCase(),
+        weekend: d.weekday > 5,
+        today: false,
+      }
+    }),
+  )
+}
+
+function addGantt(wb: Workbook, tasks: Task[], input: ExportInput, nameOf: (id: string | null) => string) {
+  const { zone } = input
+  const ws = wb.addWorksheet('Gantt', { properties: { tabColor: { argb: BRAND } } })
+  const slots = ganttSlots(tasks, input.fromDate, input.toDate, zone)
+  const hours = slots.length > 0 && slots[0].end - slots[0].start < 86_400_000 / 2
+  const LEFT = ['#', 'Task', 'Owners', 'Status', 'Progress', 'Start', 'End', 'Hours']
+  const T0 = LEFT.length + 1 // first timeline column
+  const lastCol = LEFT.length + slots.length
+  const HEAD = 5 // the two header rows are 5 and 6
+
+  ;[5, 36, 22, 13, 9, 15, 15, 7].forEach((w, i) => (ws.getColumn(i + 1).width = w))
+  slots.forEach((_, i) => (ws.getColumn(T0 + i).width = hours ? 4.6 : 3.4))
+
+  // Title, period and legend
+  ws.mergeCells(1, 1, 1, Math.max(lastCol, 8))
+  const title = ws.getCell(1, 1)
+  title.value = 'Polestar Work Calendar · Gantt chart'
+  title.font = { bold: true, size: 16, color: { argb: BRAND } }
+  ws.getRow(1).height = 28
+  ws.mergeCells(2, 1, 2, Math.max(lastCol, 8))
+  const from = DateTime.fromISO(input.fromDate).toFormat('d LLL yyyy')
+  const to = DateTime.fromISO(input.toDate).toFormat('d LLL yyyy')
+  ws.getCell(2, 1).value = `${from === to ? from : `${from} – ${to}`} · ${tasks.length} task${tasks.length === 1 ? '' : 's'} · times in ${zone} · exported ${DateTime.now().setZone(zone).toFormat('d LLL yyyy, h:mm a')}`
+  ws.getCell(2, 1).font = { size: 10, color: { argb: 'FF7A7470' } }
+  ws.mergeCells(3, 1, 3, Math.max(lastCol, 8))
+  ws.getCell(3, 1).value = {
+    richText: [
+      ...(Object.keys(GANTT_STATUS) as WorkStatus[]).flatMap((s) => [
+        { text: '■ ', font: { size: 13, color: { argb: GANTT_STATUS[s].bar } } },
+        { text: `${GANTT_STATUS[s].label}     `, font: { size: 10, color: { argb: 'FF3B3532' } } },
+      ]),
+      { text: '▨ ', font: { size: 12, color: { argb: 'FF9A938D' } } },
+      { text: 'Hatched: not yet accepted by everyone', font: { size: 10, color: { argb: 'FF3B3532' } } },
+    ],
+  }
+  ws.getRow(3).height = 20
+  ws.getRow(4).height = 6
+
+  // Header: left titles span both rows; the timeline has a group row and a label row.
+  LEFT.forEach((label, i) => {
+    ws.mergeCells(HEAD, i + 1, HEAD + 1, i + 1)
+    const c = ws.getCell(HEAD, i + 1)
+    c.value = label
+    c.font = { bold: true, color: { argb: 'FFFFFFFF' } }
+    c.fill = solid(BRAND)
+    c.alignment = { vertical: 'middle', horizontal: i === 1 || i === 2 ? 'left' : 'center', indent: i === 1 || i === 2 ? 1 : 0 }
+  })
+  let groupStart = 0
+  slots.forEach((s, i) => {
+    if (i + 1 === slots.length || slots[i + 1].group !== s.group) {
+      ws.mergeCells(HEAD, T0 + groupStart, HEAD, T0 + i)
+      const g = ws.getCell(HEAD, T0 + groupStart)
+      g.value = s.group
+      g.font = { bold: true, color: { argb: 'FFFFFFFF' } }
+      g.fill = solid(BRAND)
+      g.alignment = { horizontal: 'center', vertical: 'middle' }
+      g.border = { left: thin('FFFFFFFF') }
+      groupStart = i + 1
+    }
+    const c = ws.getCell(HEAD + 1, T0 + i)
+    c.value = s.label
+    c.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true }
+    c.font = { size: 8, bold: s.today, color: { argb: s.today ? 'FFFFFFFF' : s.weekend ? 'FF9A938D' : 'FF3B3532' } }
+    c.fill = solid(s.today ? 'FFB5462F' : s.weekend ? 'FFEDE5DF' : 'FFF6EFEA')
+    c.border = { left: thin('FFE4DBD4'), bottom: thin('FFD9CEC6') }
+  })
+  ws.getRow(HEAD).height = 20
+  ws.getRow(HEAD + 1).height = hours ? 18 : 28
+
+  // One row per task
+  tasks.forEach((t, n) => {
+    const r = HEAD + 2 + n
+    const row = ws.getRow(r)
+    row.height = 20
+    const st = GANTT_STATUS[t.work_status]
+    const tentative = t.approval_state !== 'confirmed'
+    const owners = t.assignments
+      .filter((a) => a.approval_status !== 'declined')
+      .map((a) => nameOf(a.user_id) + (a.approval_status === 'accepted' ? '' : ' (awaiting)'))
+      .join(', ')
+    const values: unknown[] = [
+      n + 1,
+      safeText(t.title),
+      safeText(owners),
+      st.label,
+      t.progress_percent / 100,
+      wallClock(t.start_at, zone),
+      wallClock(t.end_at, zone),
+      scheduledMinutes(t.start_at, t.end_at, zone) / 60,
+    ]
+    const zebra = n % 2 ? 'FFFBF9F7' : 'FFFFFFFF'
+    values.forEach((v, i) => {
+      const c = row.getCell(i + 1)
+      c.value = v as never
+      c.fill = solid(zebra)
+      c.alignment = { vertical: 'middle', horizontal: i === 1 || i === 2 ? 'left' : 'center', indent: i === 1 || i === 2 ? 1 : 0 }
+      c.border = { bottom: thin('FFEFEAE5') }
+      c.font = { size: 10, color: { argb: 'FF2B2522' } }
+    })
+    const name = row.getCell(2)
+    name.font = { size: 10, bold: t.priority === 'high', strike: t.work_status === 'cancelled', color: { argb: t.work_status === 'cancelled' ? 'FF8E8984' : 'FF2B2522' } }
+    if (t.priority === 'high') name.note = 'High priority'
+    const status = row.getCell(4)
+    status.fill = solid(st.tint)
+    status.font = { size: 9, bold: true, color: { argb: st.text } }
+    if (tentative) status.note = 'Not yet accepted by every owner'
+    row.getCell(5).numFmt = '0%'
+    row.getCell(6).numFmt = 'dd mmm hh:mm'
+    row.getCell(7).numFmt = 'dd mmm hh:mm'
+    row.getCell(8).numFmt = '0.0'
+
+    const sessions = taskSessions(t.start_at, t.end_at, zone).map((s) => [new Date(s.start_at).getTime(), new Date(s.end_at).getTime()])
+    let labelled = false
+    slots.forEach((s, i) => {
+      const c = row.getCell(T0 + i)
+      const on = sessions.some(([a, b]) => a < s.end && b > s.start)
+      c.border = { left: thin(on ? 'FFFFFFFF' : 'FFF0EBE6'), bottom: thin(on ? 'FFFFFFFF' : 'FFEFEAE5'), top: on ? thin('FFFFFFFF') : undefined }
+      if (on) {
+        c.fill = tentative
+          ? { type: 'pattern', pattern: 'darkUp', fgColor: { argb: st.bar }, bgColor: { argb: st.tint } }
+          : solid(st.bar)
+        if (!labelled && t.progress_percent > 0 && t.work_status !== 'completed') {
+          c.value = `${t.progress_percent}%`
+          c.font = { size: 8, bold: true, color: { argb: 'FF2B2522' } }
+          c.alignment = { vertical: 'middle' }
+        }
+        labelled = true
+      } else {
+        c.fill = solid(s.today ? 'FFFBE9DF' : s.weekend ? 'FFF7F3EF' : zebra)
+      }
+    })
+  })
+
+  // Totals
+  const sumRow = HEAD + 3 + tasks.length
+  ws.mergeCells(sumRow, 1, sumRow, Math.max(lastCol, 8))
+  const counts = (Object.keys(GANTT_STATUS) as WorkStatus[]).filter((s) => tasks.some((t) => t.work_status === s))
+  const planned = tasks.filter((t) => t.work_status !== 'cancelled').reduce((sum, t) => sum + scheduledMinutes(t.start_at, t.end_at, zone), 0) / 60
+  ws.getCell(sumRow, 1).value = {
+    richText: [
+      { text: 'Summary   ', font: { bold: true, size: 10, color: { argb: BRAND } } },
+      ...counts.flatMap((s) => [
+        { text: '■ ', font: { size: 12, color: { argb: GANTT_STATUS[s].bar } } },
+        { text: `${tasks.filter((t) => t.work_status === s).length} ${GANTT_STATUS[s].label.toLowerCase()}    `, font: { size: 10 } },
+      ]),
+      { text: `${Math.round(planned * 10) / 10} planned hours`, font: { size: 10, bold: true } },
+    ],
+  }
+  ws.getRow(sumRow).height = 22
+
+  ws.views = [{ state: 'frozen', xSplit: LEFT.length, ySplit: HEAD + 1, showGridLines: false, activeCell: `A${HEAD + 2}` }]
+  ws.pageSetup = {
+    orientation: 'landscape',
+    paperSize: 9, // A4
+    fitToPage: true,
+    fitToWidth: 1,
+    fitToHeight: 0,
+    printTitlesRow: `${HEAD}:${HEAD + 1}`,
+    margins: { left: 0.3, right: 0.3, top: 0.4, bottom: 0.4, header: 0.2, footer: 0.2 },
+  }
 }
 
 export async function buildWorkbook(input: ExportInput): Promise<Workbook> {
@@ -72,7 +304,10 @@ export async function buildWorkbook(input: ExportInput): Promise<Workbook> {
   wb.creator = 'Polestar Work Calendar'
   wb.created = new Date()
 
-  // ── Sheet 1: Tasks ────────────────────────────────────────────────────────
+  // ── Sheet 1: Gantt chart ──────────────────────────────────────────────────
+  addGantt(wb, tasks, input, nameOf)
+
+  // ── Sheet 2: Tasks ────────────────────────────────────────────────────────
   const fieldLabels: string[] = []
   for (const t of tasks) {
     for (const f of t.custom_fields) if (!fieldLabels.includes(f.label)) fieldLabels.push(f.label)
@@ -129,6 +364,9 @@ export async function buildWorkbook(input: ExportInput): Promise<Workbook> {
       row[`cf_${fieldLabels.indexOf(f.label)}`] = typeof v === 'string' ? safeText(v) : v
     }
     const added = ws1.addRow(row)
+    const st = GANTT_STATUS[t.work_status]
+    added.getCell('status').fill = solid(st.tint)
+    added.getCell('status').font = { bold: true, color: { argb: st.text } }
     if (!start.hasSame(end, 'day')) added.getCell('end').numFmt = 'yyyy-mm-dd hh:mm'
     for (const f of t.custom_fields) {
       if (f.type === 'date') added.getCell(`cf_${fieldLabels.indexOf(f.label)}`).numFmt = 'yyyy-mm-dd'
@@ -136,7 +374,7 @@ export async function buildWorkbook(input: ExportInput): Promise<Workbook> {
   }
   styleSheet(ws1)
 
-  // ── Sheet 2: Utilization (each user in their own time zone) ───────────────
+  // ── Sheet 3: Utilization (each user in their own time zone) ───────────────
   const ws2 = wb.addWorksheet('Utilization')
   ws2.columns = [
     { header: 'Date', key: 'date', width: 12, style: { numFmt: 'yyyy-mm-dd' } },
@@ -197,7 +435,7 @@ export async function buildWorkbook(input: ExportInput): Promise<Workbook> {
   }
   styleSheet(ws2)
 
-  // ── Sheet 3: Bookmarks and history ────────────────────────────────────────
+  // ── Sheet 4: Bookmarks and history ────────────────────────────────────────
   const ws3 = wb.addWorksheet('Bookmarks and History')
   ws3.columns = [
     { header: 'Task ID', key: 'id', width: 38 },

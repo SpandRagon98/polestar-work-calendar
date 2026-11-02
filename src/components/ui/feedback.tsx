@@ -22,16 +22,27 @@ interface ConfirmOptions {
   danger?: boolean
 }
 
+interface ChooseOptions<T extends string> {
+  title: string
+  message: ReactNode
+  /** The last choice is the main button. */
+  choices: { value: T; label: string }[]
+}
+
 interface FeedbackApi {
   toast: (message: string, kind?: ToastKind, action?: ToastAction) => void
   confirm: (opts: ConfirmOptions) => Promise<boolean>
+  /** Ask which of several ways to go; null when cancelled. */
+  choose: <T extends string>(opts: ChooseOptions<T>) => Promise<T | null>
 }
 
 const FeedbackContext = createContext<FeedbackApi | null>(null)
 
 export function FeedbackProvider({ children }: { children: ReactNode }) {
   const [toasts, setToasts] = useState<Toast[]>([])
-  const [pending, setPending] = useState<(ConfirmOptions & { resolve: (v: boolean) => void }) | null>(null)
+  const [pending, setPending] = useState<
+    (ConfirmOptions & { choices?: { value: string; label: string }[]; resolve: (v: boolean | string) => void }) | null
+  >(null)
   const nextId = useRef(1)
 
   /** Animate a toast out, then remove it. */
@@ -51,16 +62,24 @@ export function FeedbackProvider({ children }: { children: ReactNode }) {
   )
 
   const confirm = useCallback(
-    (opts: ConfirmOptions) => new Promise<boolean>((resolve) => setPending({ ...opts, resolve })),
+    (opts: ConfirmOptions) => new Promise<boolean>((resolve) => setPending({ ...opts, resolve: (v) => resolve(v === true) })),
     [],
   )
 
-  const close = (v: boolean) => {
+  const choose = useCallback(
+    <T extends string>(opts: ChooseOptions<T>) =>
+      new Promise<T | null>((resolve) =>
+        setPending({ ...opts, resolve: (v) => resolve(typeof v === 'string' ? (v as T) : null) }),
+      ),
+    [],
+  )
+
+  const close = (v: boolean | string) => {
     pending?.resolve(v)
     setPending(null)
   }
 
-  const api = useMemo(() => ({ toast, confirm }), [toast, confirm])
+  const api = useMemo(() => ({ toast, confirm, choose }), [toast, confirm, choose])
 
   return (
     <FeedbackContext.Provider value={api}>
@@ -117,17 +136,27 @@ export function FeedbackProvider({ children }: { children: ReactNode }) {
         open={!!pending}
         onClose={() => close(false)}
         title={pending?.title ?? ''}
-        width="max-w-md"
+        width={pending?.choices ? 'max-w-lg' : 'max-w-md'}
         footer={(dismiss) => (
           <>
-            <Button onClick={dismiss}>Cancel</Button>
-            <Button
-              variant={pending?.danger ? 'danger' : 'primary'}
-              className={cx(pending?.danger && 'bg-st-pending! text-white! border-transparent!')}
-              onClick={() => close(true)}
-            >
-              {pending?.confirmLabel ?? 'Confirm'}
+            <Button variant={pending?.choices ? 'ghost' : 'secondary'} onClick={dismiss}>
+              Cancel
             </Button>
+            {pending?.choices ? (
+              pending.choices.map((c, i, all) => (
+                <Button key={c.value} variant={i === all.length - 1 ? 'primary' : 'secondary'} onClick={() => close(c.value)}>
+                  {c.label}
+                </Button>
+              ))
+            ) : (
+              <Button
+                variant={pending?.danger ? 'danger' : 'primary'}
+                className={cx(pending?.danger && 'bg-st-pending! text-white! border-transparent!')}
+                onClick={() => close(true)}
+              >
+                {pending?.confirmLabel ?? 'Confirm'}
+              </Button>
+            )}
           </>
         )}
       >

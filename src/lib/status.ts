@@ -54,6 +54,7 @@ export const PRIORITY_LABEL: Record<Priority, string> = { low: 'Low', medium: 'M
  */
 export function needsUpdate(task: Task, now: Date = new Date()): boolean {
   return (
+    !task.unscheduled &&
     task.approval_state === 'confirmed' &&
     (task.work_status === 'scheduled' || task.work_status === 'in_progress') &&
     new Date(task.end_at).getTime() < now.getTime()

@@ -1,47 +1,65 @@
-import { useMemo, useState, type FormEvent } from 'react'
-import { DateTime } from 'luxon'
-import { ArrowLeft, CalendarCheck2, ChevronDown, Inbox, Send, SlidersHorizontal } from 'lucide-react'
+import { useState, type FormEvent } from 'react'
+import { ArrowLeft, CalendarCheck2, CalendarClock, ChevronDown, Flag, Send, SlidersHorizontal } from 'lucide-react'
+import type { CustomField, Priority } from '../lib/types'
+import { createTicket, explainMissing } from '../lib/api'
+import { validateFields } from '../lib/customFields'
+import { PRIORITY_LABEL } from '../lib/status'
 import { useApp } from '../context'
-import { useTaskForm, type CreateDraft } from '../hooks/useTaskForm'
-import { formatTimeRange } from '../lib/time'
 import { useShell, TopBar } from './AppShell'
 import { CustomFieldEditor } from './CustomFieldEditor'
 import { OwnerSelector } from './OwnerSelector'
-import { FormError, OwnerNotes, PriorityField, RepeatFields, TimeFields } from './TaskFormParts'
+import { FormError } from './TaskFormParts'
 import { useFeedback } from './ui/feedback'
 import { Avatar, Button, Collapse, cx } from './ui/primitives'
 
-/** Next working day at 10:00 in the user's zone, one hour long. */
-function defaultSlot(zone: string): CreateDraft {
-  let day = DateTime.now().setZone(zone).plus({ days: 1 }).startOf('day')
-  while (day.weekday > 5) day = day.plus({ days: 1 })
-  const start = day.set({ hour: 10 })
-  return { start: start.toUTC().toISO()!, end: start.plus({ hours: 1 }).toUTC().toISO()! }
-}
+const PRIORITIES: { value: Priority; hint: string; tone: string }[] = [
+  { value: 'low', hint: 'Whenever there’s room', tone: 'text-ash' },
+  { value: 'medium', hint: 'In the next few days', tone: 'text-warn' },
+  { value: 'high', hint: 'As soon as possible', tone: 'text-ember' },
+]
 
+/** Raise a ticket: what needs doing, who should do it and how urgent it is. The assignees choose the time. */
 export function NewTicketPage() {
-  const { zone } = useApp()
-  const draft = useMemo(() => defaultSlot(zone), [zone])
-  return <NewTicketForm draft={draft} />
-}
-
-function NewTicketForm({ draft }: { draft: CreateDraft }) {
-  const { me, profiles, people, zone, isMobile } = useApp()
+  const { me, profiles, people, isMobile } = useApp()
   const shell = useShell()
   const { toast } = useFeedback()
-  const form = useTaskForm(draft, [])
+  const [title, setTitle] = useState('')
+  const [description, setDescription] = useState('')
+  const [owners, setOwners] = useState<string[]>([])
+  const [priority, setPriority] = useState<Priority>('medium')
+  const [category, setCategory] = useState('')
+  const [fields, setFields] = useState<CustomField[]>([])
   const [details, setDetails] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   async function submit(e: FormEvent) {
     e.preventDefault()
-    const id = await form.submit()
-    if (!id) return
-    const n = form.repeat ? `${form.repeatDates.length} events` : null
-    toast(form.isRequest ? `${n ?? 'Ticket'} sent. Added to calendars once accepted.` : `${n ?? 'Task'} created and on the calendar.`)
-    shell.navigate('tickets', { tab: 'raised', open: id })
+    setError(null)
+    if (!title.trim()) return setError('Give the ticket a title.')
+    if (owners.length === 0) return setError('Choose at least one person to do it.')
+    const fieldErr = validateFields(fields)
+    if (fieldErr) return setError(fieldErr)
+    setBusy(true)
+    try {
+      const id = await createTicket({
+        title: title.trim(),
+        description: description.trim() || undefined,
+        priority,
+        category: category.trim() || undefined,
+        custom_fields: fields,
+        owner_ids: owners,
+      })
+      toast('Ticket sent. It reaches the calendar once an assignee chooses a time.')
+      shell.navigate('tickets', { tab: 'raised', open: id })
+    } catch (err) {
+      setError(explainMissing(err, 'create_ticket').message)
+    } finally {
+      setBusy(false)
+    }
   }
 
-  const assignees = form.owners.map((id) => people.get(id)).filter(Boolean)
+  const assignees = owners.map((id) => people.get(id)).filter(Boolean)
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -66,7 +84,7 @@ function NewTicketForm({ draft }: { draft: CreateDraft }) {
           <div className="card min-w-0">
             <div className="border-b border-line px-6 py-5 md:px-8">
               <h2 className="font-display text-xl font-bold text-ink">Raise a ticket</h2>
-              <p className="mt-1 text-sm text-ash">Describe the work, who should do it and when. They’ll accept, decline or suggest another time.</p>
+              <p className="mt-1 text-sm text-ash">Describe the work, who should do it and how urgent it is. They’ll choose when to do it.</p>
             </div>
 
             <div className="space-y-7 px-6 py-6 md:px-8">
@@ -83,8 +101,8 @@ function NewTicketForm({ draft }: { draft: CreateDraft }) {
                       maxLength={200}
                       className="field h-11 text-base"
                       placeholder="e.g. Churn analysis by region for leadership review"
-                      value={form.title}
-                      onChange={(e) => form.setTitle(e.target.value)}
+                      value={title}
+                      onChange={(e) => setTitle(e.target.value)}
                     />
                   </div>
                   <div>
@@ -96,8 +114,8 @@ function NewTicketForm({ draft }: { draft: CreateDraft }) {
                       className="field min-h-[112px] resize-y leading-relaxed"
                       maxLength={5000}
                       placeholder="Context, links, what “done” looks like…"
-                      value={form.description}
-                      onChange={(e) => form.setDescription(e.target.value)}
+                      value={description}
+                      onChange={(e) => setDescription(e.target.value)}
                     />
                   </div>
                 </div>
@@ -105,21 +123,39 @@ function NewTicketForm({ draft }: { draft: CreateDraft }) {
 
               <Section step={2} title="Who should do it?">
                 <OwnerSelector
-                  value={form.owners}
-                  onChange={form.setOwners}
+                  value={owners}
+                  onChange={setOwners}
                   people={profiles}
                   meId={me.user_id}
                   allowEmpty
                   placeholder="Choose one or more people"
                   label="Assignees"
                 />
-                <OwnerNotes form={form} />
               </Section>
 
-              <Section step={3} title="When should it happen?">
-                <div className="space-y-3">
-                  <TimeFields form={form} durations />
-                  <RepeatFields form={form} />
+              <Section step={3} title="How urgent is it?">
+                <div role="radiogroup" aria-label="Priority" className="grid gap-2 sm:grid-cols-3">
+                  {PRIORITIES.map((p) => (
+                    <button
+                      key={p.value}
+                      type="button"
+                      role="radio"
+                      aria-checked={priority === p.value}
+                      onClick={() => setPriority(p.value)}
+                      className={cx(
+                        'flex items-start gap-2.5 rounded-xl border px-3.5 py-3 text-left transition-[border-color,background-color,box-shadow] duration-150',
+                        priority === p.value
+                          ? 'border-maroon bg-peach-50 shadow-[0_0_0_3px_color-mix(in_srgb,var(--color-maroon)_12%,transparent)]'
+                          : 'border-line bg-surface hover:border-stone',
+                      )}
+                    >
+                      <Flag size={15} className={cx('mt-0.5 shrink-0', p.tone)} />
+                      <span>
+                        <span className="block text-sm font-semibold text-ink">{PRIORITY_LABEL[p.value]}</span>
+                        <span className="block text-xs text-ash">{p.hint}</span>
+                      </span>
+                    </button>
+                  ))}
                 </div>
               </Section>
 
@@ -130,41 +166,37 @@ function NewTicketForm({ draft }: { draft: CreateDraft }) {
                   aria-expanded={details}
                   className="flex items-center gap-1.5 text-xs font-semibold text-ash transition-colors hover:text-ink"
                 >
-                  <SlidersHorizontal size={14} /> Priority, project & custom fields
+                  <SlidersHorizontal size={14} /> Project & custom fields
                   <ChevronDown size={14} className={cx('transition-transform duration-200', details && 'rotate-180')} />
                 </button>
                 <Collapse open={details} className="space-y-5 pt-4 pb-1">
-                    <div className="flex flex-wrap items-center justify-between gap-3">
-                      <span className="label mb-0">Priority</span>
-                      <PriorityField form={form} />
-                    </div>
-                    <div>
-                      <label htmlFor="ticket-category" className="label">
-                        Project / category
-                      </label>
-                      <input
-                        id="ticket-category"
-                        className="field h-10"
-                        maxLength={80}
-                        placeholder="e.g. Brightspeed"
-                        value={form.category}
-                        onChange={(e) => form.setCategory(e.target.value)}
-                      />
-                    </div>
-                    <div>
-                      <span className="label">Custom fields</span>
-                      <CustomFieldEditor fields={form.fields} onChange={form.setFields} people={profiles} />
-                    </div>
+                  <div>
+                    <label htmlFor="ticket-category" className="label">
+                      Project / category
+                    </label>
+                    <input
+                      id="ticket-category"
+                      className="field h-10"
+                      maxLength={80}
+                      placeholder="e.g. Brightspeed"
+                      value={category}
+                      onChange={(e) => setCategory(e.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <span className="label">Custom fields</span>
+                    <CustomFieldEditor fields={fields} onChange={setFields} people={profiles} />
+                  </div>
                 </Collapse>
               </div>
 
-              <FormError message={form.error} />
+              <FormError message={error} />
             </div>
 
             <div className="flex flex-col-reverse gap-2 border-t border-line bg-canvas/40 px-6 py-4 sm:flex-row sm:justify-end md:px-8">
               <Button onClick={() => shell.navigate('tickets')}>Cancel</Button>
-              <Button type="submit" variant="primary" loading={form.busy} className="justify-center">
-                {!form.busy ? <Send size={15} /> : null} Submit ticket
+              <Button type="submit" variant="primary" loading={busy} className="justify-center">
+                {!busy ? <Send size={15} /> : null} Submit ticket
               </Button>
             </div>
           </div>
@@ -172,17 +204,9 @@ function NewTicketForm({ draft }: { draft: CreateDraft }) {
           <aside className="space-y-4 lg:sticky lg:top-8 lg:self-start">
             <div className="card p-5">
               <p className="section-title">Summary</p>
-              <p className={cx('mt-2 text-sm font-semibold break-words', form.title ? 'text-ink' : 'text-stone')}>
-                {form.title || 'Untitled ticket'}
-              </p>
-              <p className="mt-1 text-xs text-ash">
-                {form.timeInvalid
-                  ? 'Choose a valid time'
-                  : formatTimeRange(
-                      DateTime.fromISO(`${form.startDate}T${form.startTime}`, { zone }).toUTC().toISO()!,
-                      DateTime.fromISO(`${form.endDate}T${form.endTime}`, { zone }).toUTC().toISO()!,
-                      zone,
-                    )}
+              <p className={cx('mt-2 text-sm font-semibold break-words', title ? 'text-ink' : 'text-stone')}>{title || 'Untitled ticket'}</p>
+              <p className="mt-1 flex items-center gap-1.5 text-xs text-ash">
+                <Flag size={11} className={PRIORITIES.find((p) => p.value === priority)?.tone} /> {PRIORITY_LABEL[priority]} priority · time chosen by assignee
               </p>
               <div className="mt-3 flex flex-wrap gap-1.5">
                 {assignees.length ? (
@@ -203,11 +227,11 @@ function NewTicketForm({ draft }: { draft: CreateDraft }) {
                 <Step icon={<Send size={14} />} title="You submit">
                   Each assignee gets a notification in Tickets.
                 </Step>
-                <Step icon={<Inbox size={14} />} title="They respond">
-                  Accept, decline or suggest a different time. You can adjust and resend.
+                <Step icon={<CalendarClock size={14} />} title="They choose a time">
+                  An assignee picks the date and time when they accept, or declines.
                 </Step>
-                <Step icon={<CalendarCheck2 size={14} />} title="It’s scheduled">
-                  Once everyone accepts, it lands on their calendars. Follow progress here.
+                <Step icon={<CalendarCheck2 size={14} />} title="It’s on the calendar">
+                  Once accepted, it lands on their calendar. Follow progress here.
                 </Step>
               </ol>
             </div>

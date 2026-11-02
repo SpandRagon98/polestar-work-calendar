@@ -205,14 +205,15 @@ export function AppShell({ route, navigate, onSignOut, reloadMe, children }: Pro
             )}
           >
             <div className={cx('mb-5 flex h-11 items-center', collapsed ? 'justify-center px-0' : 'px-4')}>
-              <div
-                className={cx(
-                  'flex h-11 items-center justify-center overflow-hidden rounded-2xl bg-white',
-                  collapsed ? 'w-11' : 'w-full px-3',
-                )}
-              >
-                {collapsed ? <Logo compact className="anim-fade" /> : <Logo className="anim-fade h-6" />}
-              </div>
+              {collapsed ? (
+                <span title="Polestar Analytics" className="pw-mark-plate anim-fade flex h-9 w-9 items-center justify-center rounded-xl">
+                  <Logo compact className="h-[18px] w-[18px]" />
+                </span>
+              ) : (
+                <div className="flex h-11 w-full items-center justify-center overflow-hidden rounded-2xl bg-white px-3">
+                  <Logo className="anim-fade h-6" />
+                </div>
+              )}
             </div>
 
             <div className={cx('flex flex-col gap-1', collapsed ? 'items-center px-0' : 'px-3')}>

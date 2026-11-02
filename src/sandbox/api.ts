@@ -1,6 +1,6 @@
 // Sandbox stand-in for src/lib/api.ts (vite --mode sandbox only). Every call runs
 // the real SQL functions as the signed-in user, with RLS, inside PGlite.
-import type { Activity, Profile, Task, TaskInput, TaskPatch } from '../lib/types'
+import type { Activity, Profile, Task, TaskInput, TaskPatch, TicketInput } from '../lib/types'
 import {
   ApiError,
   REQUEST_UPDATE_TYPES,
@@ -77,6 +77,31 @@ export async function createTask(input: TaskInput): Promise<string> {
   if (input.parent_task_id) await changed(input.parent_task_id, since)
   for (const uid of input.owner_ids) emit('task_assignments', 'INSERT', { user_id: uid, task_id: id })
   return id
+}
+
+export async function createTicket(input: TicketInput): Promise<string> {
+  const since = await stamp()
+  const [{ id }] = await q<{ id: string }>(`select public.create_ticket($1) as id`, [input])
+  await changed(id, since)
+  for (const uid of input.owner_ids) emit('task_assignments', 'INSERT', { user_id: uid, task_id: id })
+  return id
+}
+
+export async function scheduleTicket(taskId: string, start: string, end: string, note?: string): Promise<string> {
+  const since = await stamp()
+  const [{ s }] = await q<{ s: string }>(`select public.schedule_ticket($1, $2, $3, $4) as s`, [taskId, start, end, note ?? null])
+  await changed(taskId, since)
+  emit('task_assignments', 'UPDATE', { user_id: me(), task_id: taskId })
+  return s
+}
+
+export async function rescheduleFollowing(id: string, version: number, start: string, end: string, zone: string): Promise<number> {
+  const since = await stamp()
+  const [{ series }] = await q<{ series: string | null }>(`select series_id as series from public.tasks where id = $1`, [id])
+  const [{ n }] = await q<{ n: number }>(`select public.reschedule_following($1, $2, $3, $4, $5) as n`, [id, version, start, end, zone])
+  const ids = await q<{ id: string }>(`select id from public.tasks where series_id = $1 and updated_at >= $2`, [series, since])
+  for (const x of ids) await changed(x.id, since)
+  return n
 }
 
 export async function createTaskSeries(input: TaskInput, occurrences: { start_at: string; end_at: string }[]): Promise<string[]> {

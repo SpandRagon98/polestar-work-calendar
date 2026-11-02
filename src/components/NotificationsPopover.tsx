@@ -5,7 +5,8 @@ import type { RequestUpdate } from '../lib/api'
 import { ACTIVITY_LABEL } from '../lib/activity'
 import { desktopAlertState, disableDesktopAlerts, enableDesktopAlerts, type DesktopAlertState } from '../lib/desktopAlerts'
 import { APPROVAL_STATE_LABEL } from '../lib/status'
-import { formatRelative, formatTimeRange } from '../lib/time'
+import { formatRelative } from '../lib/time'
+import { ticketWhen } from '../lib/tickets'
 import { useApp } from '../context'
 import { Avatar, Button, EmptyState, cx, useDismiss, usePresence } from './ui/primitives'
 
@@ -88,8 +89,10 @@ export function NotificationsPopover({ pending, requests, updates, badge, seenAt
                       </span>
                       <span className="min-w-0 flex-1">
                         <span className="block truncate text-sm font-semibold">{t.title}</span>
-                        <span className="block text-xs text-ash">{formatTimeRange(t.start_at, t.end_at, zone)}</span>
-                        <span className="block text-xs text-stone">From {from?.name ?? 'a teammate'} · tap to accept, decline or suggest a time</span>
+                        <span className="block text-xs text-ash">{ticketWhen(t, zone)}</span>
+                        <span className="block text-xs text-stone">
+                          From {from?.name ?? 'a teammate'} · {t.unscheduled ? 'tap to choose a time and accept' : 'tap to accept, decline or suggest a time'}
+                        </span>
                       </span>
                     </button>
                   )
@@ -149,7 +152,7 @@ export function NotificationsPopover({ pending, requests, updates, badge, seenAt
                       >
                         <span className="min-w-0 flex-1">
                           <span className="block truncate text-sm font-medium">{t.title}</span>
-                          <span className="block text-xs text-ash">{formatTimeRange(t.start_at, t.end_at, zone)}</span>
+                          <span className="block text-xs text-ash">{ticketWhen(t, zone)}</span>
                         </span>
                         <span
                           className={cx(

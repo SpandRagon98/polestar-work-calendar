@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import ExcelJS from 'exceljs'
 import { MANDYA, SPANDAN, RUPAM, makeTask, people } from './fixtures'
-import { buildWorkbook, exportFileName, safeText, wallClock } from '../lib/export'
+import { buildWorkbook, exportFileName, GANTT_STATUS, safeText, wallClock } from '../lib/export'
 import type { Activity } from '../lib/types'
 
 const profiles = [people.spandan, people.mandya, people.rupam]
@@ -56,7 +56,7 @@ describe('Excel export', () => {
     const wb = await roundTrip(
       await buildWorkbook({ tasks: [brightspeed, outside, tentative], activities, profiles, fromDate: '2026-11-02', toDate: '2026-11-06', zone: 'Asia/Kolkata' }),
     )
-    expect(wb.worksheets.map((w) => w.name)).toEqual(['Tasks', 'Utilization', 'Bookmarks and History'])
+    expect(wb.worksheets.map((w) => w.name)).toEqual(['Gantt', 'Tasks', 'Utilization', 'Bookmarks and History'])
 
     const tasks = wb.getWorksheet('Tasks')!
     const header = (tasks.getRow(1).values as unknown[]).slice(1)
@@ -75,6 +75,45 @@ describe('Excel export', () => {
     expect(row.getCell(col('Reviewer')).value).toBe('Mandya')
     expect(row.getCell(col('Start Time')).value).toEqual(new Date('2026-11-02T14:00:00Z')) // wall clock IST
     expect(row.getCell(col('Planned Duration (h)')).value).toBe(2)
+  })
+
+  it('opens on a Gantt chart: one bar per task, coloured by status', async () => {
+    const unscheduled = makeTask({ title: 'Ticket without a time', unscheduled: true })
+    const wb = await roundTrip(
+      await buildWorkbook({ tasks: [brightspeed, tentative, unscheduled], activities, profiles, fromDate: '2026-11-02', toDate: '2026-11-06', zone: 'Asia/Kolkata' }),
+    )
+    const gantt = wb.worksheets[0]
+    expect(gantt.name).toBe('Gantt')
+    expect(gantt.getCell('A1').value).toBe('Polestar Work Calendar · Gantt chart')
+    expect([1, 2, 4].map((c) => gantt.getRow(5).getCell(c).value)).toEqual(['#', 'Task', 'Status'])
+    expect(gantt.getRow(5).getCell(9).value).toBe('November 2026')
+    expect(gantt.getRow(6).getCell(9).value).toBe('M\n2') // Monday 2 Nov
+    expect(gantt.views[0]).toMatchObject({ state: 'frozen', xSplit: 8, ySplit: 6 })
+
+    const rows = [7, 8].map((r) => gantt.getRow(r))
+    const bright = rows.find((r) => r.getCell(2).value === 'Brightspeed Data Validation')!
+    expect(bright.getCell(4).value).toBe('In progress')
+    expect(bright.getCell(9).fill).toMatchObject({ pattern: 'solid', fgColor: { argb: GANTT_STATUS.in_progress.bar } })
+    expect(bright.getCell(9).value).toBe('60%')
+    expect(bright.getCell(10).fill).not.toMatchObject({ fgColor: { argb: GANTT_STATUS.in_progress.bar } })
+    const waiting = rows.find((r) => r !== bright)!
+    expect(waiting.getCell(4).value).toBe('Not started')
+    expect(waiting.getCell(9).fill).toMatchObject({ pattern: 'darkUp' }) // not accepted yet
+    // Tickets without a time aren't on the calendar, so they aren't exported.
+    expect(gantt.getRow(9).getCell(2).value).not.toBe('Ticket without a time')
+    expect(wb.worksheets.map((w) => w.name)).toEqual(['Gantt', 'Tasks', 'Utilization', 'Bookmarks and History'])
+  })
+
+  it('uses hour columns for a one-day export', async () => {
+    const wb = await roundTrip(
+      await buildWorkbook({ tasks: [brightspeed], activities: [], profiles, fromDate: '2026-11-02', toDate: '2026-11-02', zone: 'Asia/Kolkata' }),
+    )
+    const gantt = wb.getWorksheet('Gantt')!
+    const labels = (gantt.getRow(6).values as unknown[]).slice(9)
+    expect(labels[0]).toBe('9am')
+    const filled = labels.filter((_, i) => (gantt.getRow(7).getCell(9 + i).fill as { fgColor?: { argb: string } }).fgColor?.argb === GANTT_STATUS.in_progress.bar)
+    expect(filled).toHaveLength(2) // 2–4 PM
+    expect(labels[labels.findIndex((_, i) => (gantt.getRow(7).getCell(9 + i).fill as { fgColor?: { argb: string } }).fgColor?.argb === GANTT_STATUS.in_progress.bar)]).toBe('2pm')
   })
 
   it('escapes spreadsheet formulas in user text', async () => {

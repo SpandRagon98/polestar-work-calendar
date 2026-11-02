@@ -429,6 +429,97 @@ describe('repeating an existing event', () => {
   })
 })
 
+describe('tickets without a time', () => {
+  const ticket = (user: string, owners: string[]) =>
+    rpc<string>(user, 'create_ticket', [{ title: 'Churn deck', priority: 'high', owner_ids: owners }])
+
+  it('starts unscheduled, off every calendar, with everyone asked', async () => {
+    const id = await ticket(rupam, [spandan, mandya])
+    const row = await task(id)
+    expect(row).toMatchObject({ unscheduled: true, approval_state: 'awaiting_approval', priority: 'high', requester_id: rupam })
+    expect(await assignments(id)).toEqual({ [spandan]: 'pending', [mandya]: 'pending' })
+  })
+
+  it('lets an assignee set the time, which accepts it; the others then accept that time', async () => {
+    const id = await ticket(rupam, [spandan, mandya])
+    await fails(rpc(spandan, 'respond_assignment', [id, 'accept', null, null, null]), undefined, /Choose a date and time/)
+    await fails(rpc(rupam, 'update_task', [id, 1, { start_at: at(9), end_at: at(10) }]), '42501')
+    await fails(rpc(priya, 'schedule_ticket', [id, at(9), at(10), null]), '42501')
+    await rpc(spandan, 'schedule_ticket', [id, at(9), at(10), 'Tomorrow morning'])
+    const row = await task(id)
+    expect(row.unscheduled).toBe(false)
+    expect(new Date(row.start_at as string).toISOString()).toBe(new Date(at(9)).toISOString())
+    expect(await assignments(id)).toEqual({ [spandan]: 'accepted', [mandya]: 'pending' })
+    expect(await activityTypes(id)).toEqual(expect.arrayContaining(['ticket_scheduled', 'assignment_accepted']))
+    await fails(rpc(mandya, 'schedule_ticket', [id, at(11), at(12), null]), 'PT409')
+    await rpc(mandya, 'respond_assignment', [id, 'accept', null, null, null])
+    expect((await task(id)).approval_state).toBe('confirmed')
+  })
+
+  it('puts an admin ticket straight on every assignee calendar once it has a time', async () => {
+    const id = await ticket(admin, [spandan, mandya])
+    expect(await assignments(id)).toEqual({ [spandan]: 'pending', [mandya]: 'pending' })
+    await rpc(mandya, 'schedule_ticket', [id, at(13), at(14), null])
+    expect(await assignments(id)).toEqual({ [spandan]: 'accepted', [mandya]: 'accepted' })
+    expect((await task(id)).approval_state).toBe('confirmed')
+  })
+
+  it('keeps owners an admin adds pending until there is a time, and allows declining', async () => {
+    const id = await ticket(admin, [spandan])
+    await rpc(admin, 'set_task_owners', [id, 1, [spandan, mandya]])
+    expect(await assignments(id)).toEqual({ [spandan]: 'pending', [mandya]: 'pending' })
+    await rpc(spandan, 'respond_assignment', [id, 'decline', 'No capacity', null, null])
+    expect(await assignments(id)).toMatchObject({ [spandan]: 'declined' })
+  })
+
+  it('needs a title and real people, and is closed to outsiders', async () => {
+    await fails(rpc(rupam, 'create_ticket', [{ title: ' ', owner_ids: [spandan] }]), undefined, /title/)
+    await fails(rpc(rupam, 'create_ticket', [{ title: 'x', owner_ids: [] }]), undefined, /at least one/)
+    await fails(t.asAnon(`select public.create_ticket('{}'::jsonb)`), '42501')
+  })
+})
+
+describe('moving this and following dates of a series', () => {
+  const dates = [2, 3, 4, 5].map((day) => ({ start_at: at(10, 0, day), end_at: at(11, 0, day) }))
+  const series = (user: string, owners: string[]) =>
+    rpc<string[]>(user, 'create_task_series', [{ title: 'Weekly review', owner_ids: owners, occurrences: dates }])
+  const times = async (ids: string[]) =>
+    (await Promise.all(ids.map(task))).map((r) => [new Date(r.start_at as string).toISOString(), new Date(r.end_at as string).toISOString()])
+
+  it('moves the chosen date and every later one by the same change, leaving earlier ones', async () => {
+    const ids = await series(spandan, [spandan])
+    // The third date moves from 10–11 to 12–1:30.
+    const n = await rpc<number>(spandan, 'reschedule_following', [ids[2], 1, at(12, 0, 4), at(13, 30, 4), 'Asia/Kolkata'])
+    expect(n).toBe(2)
+    expect(await times(ids)).toEqual([
+      [at(10, 0, 2), at(11, 0, 2)],
+      [at(10, 0, 3), at(11, 0, 3)],
+      [at(12, 0, 4), at(13, 30, 4)],
+      [at(12, 0, 5), at(13, 30, 5)],
+    ].map(([a, b]) => [new Date(a).toISOString(), new Date(b).toISOString()]))
+    expect(await activityTypes(ids[3])).toContain('rescheduled')
+  })
+
+  it('keeps the wall-clock time across a daylight-saving change', async () => {
+    // New York: 9 AM on Fri 30 Oct is 13:00Z; after the change on 1 Nov, 9 AM is 14:00Z.
+    const ny = [30, 31].map((d) => ({ start_at: `2026-10-${d}T13:00:00Z`, end_at: `2026-10-${d}T14:00:00Z` }))
+    ny.push({ start_at: '2026-11-02T14:00:00Z', end_at: '2026-11-02T15:00:00Z' })
+    const ids = await rpc<string[]>(spandan, 'create_task_series', [{ title: 'NY sync', owner_ids: [spandan], occurrences: ny }])
+    await rpc(spandan, 'reschedule_following', [ids[0], 1, '2026-10-30T14:00:00Z', '2026-10-30T15:00:00Z', 'America/New_York'])
+    const after = await times(ids)
+    expect(after[2]).toEqual([new Date('2026-11-02T15:00:00Z').toISOString(), new Date('2026-11-02T16:00:00Z').toISOString()])
+  })
+
+  it('refuses stale versions and tasks that do not repeat, and changes nothing then', async () => {
+    const ids = await series(spandan, [spandan])
+    await fails(rpc(spandan, 'reschedule_following', [ids[1], 7, at(12, 0, 3), at(13, 0, 3), 'UTC']), 'PT409')
+    expect(new Date((await task(ids[2])).start_at as string).toISOString()).toBe(new Date(at(10, 0, 4)).toISOString())
+    const single = await newTask(spandan, [spandan])
+    await fails(rpc(spandan, 'reschedule_following', [single, 1, at(12), at(13), 'UTC']), undefined, /does not repeat/)
+    await fails(rpc(mandya, 'reschedule_following', [ids[0], 1, at(12), at(13), 'UTC']))
+  })
+})
+
 describe('recurring series', () => {
   const occurrences = [2, 3, 4].map((day) => ({ start_at: at(10, 0, day), end_at: at(11, 0, day) }))
   const series = (user: string, owners: string[]) =>

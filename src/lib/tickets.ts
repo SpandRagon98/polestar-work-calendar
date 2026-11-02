@@ -1,4 +1,5 @@
 import type { Task } from './types'
+import { formatTimeRange } from './time'
 
 /** A ticket is any task raised for someone else (it has a requester). */
 export function isTicket(task: Task): boolean {
@@ -49,6 +50,11 @@ export function ticketStatus(task: Task): TicketStatus {
     default:
       return 'accepted'
   }
+}
+
+/** When a ticket happens, or that its assignees haven't chosen yet. */
+export function ticketWhen(task: Pick<Task, 'start_at' | 'end_at' | 'unscheduled'>, zone: string): string {
+  return task.unscheduled ? 'Time not set yet' : formatTimeRange(task.start_at, task.end_at, zone)
 }
 
 export function acceptedCount(task: Task): { accepted: number; total: number } {

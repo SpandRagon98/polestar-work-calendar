@@ -1,5 +1,5 @@
 import { supabase } from './supabase'
-import type { Activity, AssignmentStatus, Profile, Task, TaskInput, TaskPatch } from './types'
+import type { Activity, AssignmentStatus, Profile, Task, TaskInput, TaskPatch, TicketInput } from './types'
 import {
   ApiError,
   REQUEST_UPDATE_TYPES,
@@ -56,6 +56,25 @@ export async function createTaskSeries(input: TaskInput, occurrences: { start_at
 /** Repeat an existing event on later dates; it becomes the first date of the series. */
 export async function repeatTask(id: string, version: number, occurrences: { start_at: string; end_at: string }[]): Promise<string[]> {
   return check(await supabase.rpc('repeat_task', { p_id: id, p_version: version, p_occurrences: occurrences })) as string[]
+}
+
+/** Raise a ticket without a time; the assignees choose it when they accept. */
+export async function createTicket(input: TicketInput): Promise<string> {
+  return check(await supabase.rpc('create_ticket', { p: input })) as string
+}
+
+/** As an assignee, give an unscheduled ticket its time (this also accepts it). */
+export async function scheduleTicket(taskId: string, start: string, end: string, note?: string): Promise<string> {
+  return check(
+    await supabase.rpc('schedule_ticket', { p_task_id: taskId, p_start: start, p_end: end, p_note: note ?? null }),
+  ) as string
+}
+
+/** Move one date of a repeating event and every later date by the same change. Returns how many moved. */
+export async function rescheduleFollowing(id: string, version: number, start: string, end: string, zone: string): Promise<number> {
+  return check(
+    await supabase.rpc('reschedule_following', { p_id: id, p_version: version, p_start: start, p_end: end, p_zone: zone }),
+  ) as number
 }
 
 /** Answer all of my pending occurrences in a series. Returns how many were answered. */

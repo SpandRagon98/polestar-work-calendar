@@ -2,7 +2,7 @@ import { useCallback, useMemo, useRef, useState } from 'react'
 import { DateTime } from 'luxon'
 import { ChevronLeft, ChevronRight, FileSpreadsheet, Plus, RefreshCw } from 'lucide-react'
 import type { Task } from '../lib/types'
-import { fetchTask, toApiError, updateTask } from '../lib/api'
+import { explainMissing, fetchTask, rescheduleFollowing, toApiError, updateTask } from '../lib/api'
 import { onCalendar } from '../lib/permissions'
 import { displayState } from '../lib/status'
 import { daysBetween, formatHours, minutesByLocalDay } from '../lib/time'
@@ -24,7 +24,7 @@ type Scope = 'mine' | 'team'
 export function CalendarPage() {
   const { me, profiles, people, zone, isMobile } = useApp()
   const shell = useShell()
-  const { toast } = useFeedback()
+  const { toast, choose } = useFeedback()
   const now = useNow()
   const cal = useRef<CalendarHandle>(null)
 
@@ -148,7 +148,18 @@ export function CalendarPage() {
   }
 
   const reschedule = async (task: Task, start: Date, end: Date) => {
+    const scope = task.series_id ? await askSeries(choose, task) : 'one'
+    if (!scope) throw new Error('cancelled') // puts the event back
     try {
+      if (scope === 'following') {
+        const n = await rescheduleFollowing(task.id, task.version, start.toISOString(), end.toISOString(), zone).catch((e) => {
+          throw explainMissing(e, 'reschedule_following')
+        })
+        await refresh(task.id)
+        void reload()
+        toast(n > 1 ? `Moved this date and ${n - 1} later one${n === 2 ? '' : 's'}.` : 'Rescheduled. There were no later dates to move.')
+        return
+      }
       await updateTask(task.id, task.version, { start_at: start.toISOString(), end_at: end.toISOString() })
       const fresh = await refresh(task.id)
       const clash = fresh
@@ -357,6 +368,23 @@ export function CalendarPage() {
       />
     </>
   )
+}
+
+/** For a repeating event: move only this date, or this and every later one? */
+function askSeries(choose: ReturnType<typeof useFeedback>['choose'], task: Task) {
+  return choose({
+    title: 'Change a repeating event',
+    message: (
+      <>
+        <b className="text-ink">{task.title}</b> repeats. Apply the new time to this date only, or to this date and every later
+        one? Later dates move by the same amount.
+      </>
+    ),
+    choices: [
+      { value: 'one', label: 'This event' },
+      { value: 'following', label: 'This and following events' },
+    ],
+  })
 }
 
 function SummaryChip({ children, tone }: { children: React.ReactNode; tone?: string }) {

@@ -82,6 +82,18 @@
   --shadow-pop: 0 10px 30px rgb(0 0 0 / 0.5);
 }
 /* The logo has dark lettering: dark themes sit it on a small white plate. */
+/* Collapsed sidebar: the star on a faint glass tile. */
+.pw-mark-plate {
+  background: rgb(255 255 255 / 0.07);
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.1);
+}
+.pw-mark-plate .pw-mark {
+  filter: drop-shadow(0 0 5px rgb(255 200 50 / 0.35));
+  transition: transform 300ms var(--ease-spring);
+}
+.pw-mark-plate:hover .pw-mark {
+  transform: rotate(-14deg) scale(1.1);
+}
 [data-tone='dark'] .pw-logo {
   border-radius: 6px;
   background: #fff;

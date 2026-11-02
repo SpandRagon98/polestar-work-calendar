@@ -24,7 +24,10 @@ import {
   addBookmark,
   deleteTask,
   deleteTaskSeries,
+  explainMissing,
   repeatTask,
+  rescheduleFollowing,
+  scheduleTicket,
   fetchActivities,
   respondToAssignment,
   respondToSeries,
@@ -359,8 +362,14 @@ export function TaskDrawer({ task, onClose: closeNow, refreshTask, onManyChanged
         <p className="mt-1 flex items-start gap-1.5 text-sm leading-snug text-ash">
           <Clock size={14} className="mt-[3px] shrink-0 text-stone" />
           <span>
-            {formatTimeRange(task.start_at, task.end_at, zone)}
-            <span className="text-stone"> · {formatLength(task.start_at, task.end_at, zone)}</span>
+            {task.unscheduled ? (
+              'Time not set yet: the people assigned choose it when they accept'
+            ) : (
+              <>
+                {formatTimeRange(task.start_at, task.end_at, zone)}
+                <span className="text-stone"> · {formatLength(task.start_at, task.end_at, zone)}</span>
+              </>
+            )}
           </span>
         </p>
       </div>
@@ -395,6 +404,15 @@ export function TaskDrawer({ task, onClose: closeNow, refreshTask, onManyChanged
           people={people}
           activities={activities}
           onRespond={respond}
+          onSchedule={async (s, e, note) => {
+            await mutate(
+              () =>
+                scheduleTicket(task.id, s, e, note).catch((err) => {
+                  throw explainMissing(err, 'schedule_ticket')
+                }),
+              'Time set and accepted. It’s on your calendar.',
+            )
+          }}
           onAcceptSeries={async () => {
             if (!task.series_id) return
             await mutate(async () => {
@@ -416,8 +434,20 @@ export function TaskDrawer({ task, onClose: closeNow, refreshTask, onManyChanged
             task={task}
             zone={zone}
             onCancel={() => setEditingTime(false)}
-            onSave={async (s, e) => {
-              const ok = await patch({ start_at: s, end_at: e }, 'Rescheduled.')
+            onSave={async (s, e, scope) => {
+              let moved = 0
+              const ok =
+                scope === 'following'
+                  ? await mutate(async (v) => {
+                      moved = await rescheduleFollowing(task.id, v, s, e, zone).catch((err) => {
+                        throw explainMissing(err, 'reschedule_following')
+                      })
+                    })
+                  : await patch({ start_at: s, end_at: e }, 'Rescheduled.')
+              if (ok && scope === 'following') {
+                toast(moved > 1 ? `Moved this date and ${moved - 1} later one${moved === 2 ? '' : 's'}.` : 'Rescheduled. There were no later dates to move.')
+                onManyChanged?.()
+              }
               if (ok) setEditingTime(false)
             }}
           />
@@ -433,7 +463,7 @@ export function TaskDrawer({ task, onClose: closeNow, refreshTask, onManyChanged
           </button>
         ) : null}
 
-        {editable && !task.series_id && task.work_status !== 'cancelled' && taskSessions(task.start_at, task.end_at, zone).length === 1 ? (
+        {editable && !task.series_id && !task.unscheduled && task.work_status !== 'cancelled' && taskSessions(task.start_at, task.end_at, zone).length === 1 ? (
           <RepeatEditor
             task={task}
             zone={zone}
@@ -824,9 +854,10 @@ function TimeEditor({
 }: {
   task: Task
   zone: string
-  onSave: (start: string, end: string) => Promise<void>
+  onSave: (start: string, end: string, scope: 'one' | 'following') => Promise<void>
   onCancel: () => void
 }) {
+  const [scope, setScope] = useState<'one' | 'following'>('one')
   const s = toLocalInputs(task.start_at, zone)
   const e = toLocalInputs(task.end_at, zone)
   const [sd, setSd] = useState(s.date)
@@ -848,6 +879,21 @@ function TimeEditor({
         <input type="time" aria-label="End time" className="field h-9 w-[110px]" value={et} onChange={(x) => setEt(x.target.value)} />
       </div>
       {invalid ? <p className="mt-2 text-xs text-st-pending">End time must be later than start time.</p> : null}
+      {task.series_id ? (
+        <div className="mt-3">
+          <p className="label">This event repeats. Apply the change to</p>
+          <Segmented
+            size="sm"
+            label="Apply the change to"
+            value={scope}
+            onChange={setScope}
+            options={[
+              { value: 'one', label: 'This event' },
+              { value: 'following', label: 'This and following' },
+            ]}
+          />
+        </div>
+      ) : null}
       <div className="mt-3 flex justify-end gap-1.5">
         <Button size="sm" variant="ghost" onClick={onCancel}>
           Cancel
@@ -861,7 +907,7 @@ function TimeEditor({
             if (!start || !end) return
             setBusy(true)
             try {
-              await onSave(start, end)
+              await onSave(start, end, scope)
             } finally {
               setBusy(false)
             }

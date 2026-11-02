@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { DateTime } from 'luxon'
-import { Check, ChevronRight, Flag, Inbox, Plus, Search, Send, Ticket as TicketIcon } from 'lucide-react'
+import { CalendarClock, Check, ChevronRight, Flag, Inbox, Plus, Search, Send, Ticket as TicketIcon } from 'lucide-react'
 import type { Task } from '../lib/types'
 import { supabase } from '../lib/supabase'
 import {
@@ -12,8 +12,8 @@ import {
   respondToAssignment,
   toApiError,
 } from '../lib/api'
-import { acceptedCount, TICKET_STATUS_LABEL, TICKET_STATUS_STYLE, ticketStatus, type TicketStatus } from '../lib/tickets'
-import { formatRelative, formatTimeRange } from '../lib/time'
+import { acceptedCount, TICKET_STATUS_LABEL, TICKET_STATUS_STYLE, ticketStatus, ticketWhen, type TicketStatus } from '../lib/tickets'
+import { formatRelative } from '../lib/time'
 import { useApp } from '../context'
 import { useShell, TopBar } from './AppShell'
 import { CreateTaskDialog, type CreateDraft } from './CreateTaskDialog'
@@ -341,7 +341,7 @@ function TicketRow({
   const st = ticketStatus(task)
   const { accepted, total } = acceptedCount(task)
   const requester = people.get(task.requester_id ?? task.created_by ?? '')
-  const when = formatTimeRange(task.start_at, task.end_at, zone)
+  const when = ticketWhen(task, zone)
   const statusChip = (
     <span className={cx('chip', TICKET_STATUS_STYLE[st])}>
       {st === 'awaiting' && total > 1 ? `${accepted}/${total} accepted` : TICKET_STATUS_LABEL[st]}
@@ -378,7 +378,11 @@ function TicketRow({
       </span>
     </span>
   )
-  const actions = showAccept ? (
+  const actions = showAccept && task.unscheduled ? (
+    <Button size="sm" variant="primary" onClick={onOpen}>
+      <CalendarClock size={13} /> Choose time
+    </Button>
+  ) : showAccept ? (
     <span className="flex items-center gap-1.5">
       <Button size="sm" variant="primary" loading={accepting} onClick={onAccept}>
         {!accepting ? <Check size={13} /> : null} Accept

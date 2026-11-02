@@ -20,6 +20,7 @@ export const ACTIVITY_LABEL: Record<string, string> = {
   request_confirmed: 'Request confirmed by all owners',
   request_needs_revision: 'Request needs revision',
   series_created: 'Set to repeat',
+  ticket_scheduled: 'Scheduled the ticket',
   bookmark: 'Progress note',
 }
 
@@ -44,6 +45,7 @@ export function describeActivity(a: Activity, profiles: NameMap, zone: string): 
     }
     case 'proposal_updated':
     case 'time_suggested':
+    case 'ticket_scheduled':
       return m.start_at && m.end_at ? formatTimeRange(String(m.start_at), String(m.end_at), zone) : ''
     case 'status_changed':
     case 'completed': {

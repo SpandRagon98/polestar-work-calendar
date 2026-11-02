@@ -80,7 +80,7 @@ export function ExportDialog({ open, onClose, visibleStart, visibleEnd }: Props)
       open={open}
       onClose={onClose}
       title="Export to Excel"
-      description="Tasks, utilization and history as an .xlsx file — generated in your browser."
+      description="A Gantt chart, tasks, utilization and history as an .xlsx file — generated in your browser."
       width="max-w-md"
       footer={(close) => (
         <>
@@ -174,6 +174,9 @@ export function ExportDialog({ open, onClose, visibleStart, visibleEnd }: Props)
           </div>
         ) : null}
         <ul className="space-y-1 rounded-2xl bg-canvas p-3 text-xs text-ash">
+          <li>
+            <b className="text-ink">Gantt</b> — every task as a bar, coloured by status
+          </li>
           <li>
             <b className="text-ink">Tasks</b> — one row per task, custom fields as extra columns
           </li>
