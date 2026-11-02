@@ -19,6 +19,7 @@ import * as api from '../lib/api'
 import { CreateTaskDialog } from '../components/CreateTaskDialog'
 import { CustomFieldEditor } from '../components/CustomFieldEditor'
 import { ProgressControl } from '../components/ProgressControl'
+import { PointsEditor } from '../components/PointsEditor'
 import { persistMove } from '../components/CalendarView'
 import type { CustomField } from '../lib/types'
 
@@ -53,7 +54,7 @@ describe('creating a task from a selected range', () => {
     expect(screen.getByLabelText('End time')).toHaveValue('16:00')
     expect(screen.getByRole('button', { name: 'Owners' })).toHaveTextContent('Me')
 
-    await userEvent.type(screen.getByLabelText('Task title'), 'Brightspeed Data Validation')
+    await userEvent.type(screen.getByLabelText('Title'), 'Brightspeed Data Validation')
     await userEvent.click(screen.getByRole('button', { name: 'Create task' }))
 
     await waitFor(() => expect(onCreated).toHaveBeenCalledWith('new-task-id'), { timeout: 3000 })
@@ -71,12 +72,12 @@ describe('creating a task from a selected range', () => {
   it('keeps focus in the title field after the dialog opens', async () => {
     wrap(<CreateTaskDialog draft={draft} categories={[]} onClose={() => {}} onCreated={() => {}} />)
     await new Promise((r) => setTimeout(r, 50)) // let the dialog's focus frame run
-    expect(document.activeElement).toBe(screen.getByLabelText('Task title'))
+    expect(document.activeElement).toBe(screen.getByLabelText('Title'))
   })
 
   it('turns into a ticket when another owner is added', async () => {
     wrap(<CreateTaskDialog draft={draft} categories={[]} onClose={() => {}} onCreated={() => {}} />)
-    await userEvent.type(screen.getByLabelText('Task title'), 'Joint review')
+    await userEvent.type(screen.getByLabelText('Title'), 'Joint review')
     await userEvent.click(screen.getByRole('button', { name: 'Owners' }))
     await userEvent.click(screen.getByRole('option', { name: /Mandya/ }))
     expect(screen.getByText(/needs to accept before it appears on their calendar/)).toBeInTheDocument()
@@ -87,7 +88,7 @@ describe('creating a task from a selected range', () => {
 
   it('blocks an end time before the start time', async () => {
     wrap(<CreateTaskDialog draft={draft} categories={[]} onClose={() => {}} onCreated={() => {}} />)
-    await userEvent.type(screen.getByLabelText('Task title'), 'Backwards')
+    await userEvent.type(screen.getByLabelText('Title'), 'Backwards')
     const end = screen.getByLabelText('End time')
     await userEvent.clear(end)
     await userEvent.type(end, '13:00')
@@ -147,5 +148,28 @@ describe('progress control', () => {
     await userEvent.clear(input)
     await userEvent.type(input, '150{Enter}')
     expect(onCommit).toHaveBeenLastCalledWith(100)
+  })
+})
+
+describe('points editor', () => {
+  it('adds a point on Enter, edits one in place and removes one', async () => {
+    let points: string[] = ['Agenda']
+    const onChange = vi.fn((p: string[]) => (points = p))
+    render(<PointsEditor value={points} onChange={onChange} />)
+    await userEvent.type(screen.getByLabelText('New point'), '  Decide owner  {Enter}')
+    expect(points).toEqual(['Agenda', 'Decide owner'])
+    await userEvent.click(screen.getByRole('button', { name: 'Agenda' }))
+    const edit = screen.getByLabelText('Point 1')
+    await userEvent.clear(edit)
+    await userEvent.type(edit, 'Agenda sent{Enter}')
+    expect(points).toEqual(['Agenda sent', 'Decide owner'])
+    await userEvent.click(screen.getByRole('button', { name: 'Remove point 2' }))
+    expect(points).toEqual(['Agenda sent'])
+  })
+
+  it('is read-only for people who cannot edit', () => {
+    render(<PointsEditor value={['Only this']} onChange={vi.fn()} disabled />)
+    expect(screen.queryByLabelText('New point')).toBeNull()
+    expect(screen.queryByRole('button', { name: /Remove/ })).toBeNull()
   })
 })

@@ -40,6 +40,7 @@ Open **SQL Editor → New query**, paste each file in
 3. `20261101000000_admin_direct_and_series.sql` — admin-created events need no acceptance; repeating events
 4. `20261102000000_repeat_existing_task.sql` — the Repeat button on an existing event
 5. `20261103000000_tickets_unscheduled_and_series_moves.sql` — tickets without a time (assignees choose it); moving “this and following” dates of a repeating event
+6. `20261104000000_events_and_points.sql` — events (no progress or overdue warning) and bullet points on tasks and events
 
 When a new migration file appears in a later update, run just that file.
 

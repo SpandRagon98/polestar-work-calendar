@@ -50,6 +50,8 @@ export function normalizeTask(row: TaskRow): Task {
   return {
     ...rest,
     custom_fields: Array.isArray(rest.custom_fields) ? (rest.custom_fields as CustomField[]) : [],
+    kind: rest.kind === 'event' ? 'event' : 'task',
+    points: Array.isArray(rest.points) ? rest.points : [],
     assignments: task_assignments ?? [],
     bookmark_count: Number(bookmarks?.[0]?.count ?? 0),
   }

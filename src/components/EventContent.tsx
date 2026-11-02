@@ -1,5 +1,5 @@
 import { useEffect, useRef, type ReactNode } from 'react'
-import { AlertCircle, Bookmark, Flag, Hourglass, Repeat } from 'lucide-react'
+import { AlertCircle, Bookmark, CalendarDays, Flag, Hourglass, List, Repeat } from 'lucide-react'
 import type { Profile, Task } from '../lib/types'
 import { displayState, needsUpdate, progressColor, initials, avatarColor, STATE_LABEL } from '../lib/status'
 import { displayValue } from '../lib/customFields'
@@ -21,6 +21,10 @@ interface Props {
 export function EventContent({ task, meId, zone, people, now, bar, handles }: Props) {
   const state = displayState(task, meId)
   const stale = needsUpdate(task, now)
+  // Events have no progress: they take their own colour unless awaiting or cancelled.
+  const isEvent = task.kind === 'event'
+  const look = isEvent && ['scheduled', 'in_progress', 'pending', 'completed'].includes(state) ? 'event' : state
+  const points = task.points?.length ?? 0
   const owners = task.assignments.filter((a) => a.approval_status !== 'declined')
   const pinned = task.custom_fields.filter((f) => f.pinned).slice(0, 2)
   // A daily slot looks like one day's worth of the event.
@@ -32,12 +36,14 @@ export function EventContent({ task, meId, zone, people, now, bar, handles }: Pr
   const time = `${start.toFormat(start.minute ? 'h:mm' : 'h')}–${end.toFormat(end.minute ? 'h:mm a' : 'h a')}`
   // The event element is reused as the task changes, so keep its label in step.
   const body = useRef<HTMLDivElement>(null)
-  const label = `${task.title}, ${formatTimeRange(task.start_at, task.end_at, zone)}, ${STATE_LABEL[state]}, ${task.progress_percent}% complete`
+  const label = isEvent
+    ? `Event: ${task.title}, ${formatTimeRange(task.start_at, task.end_at, zone)}${look === 'event' ? '' : `, ${STATE_LABEL[state]}`}${points ? `, ${points} points` : ''}`
+    : `${task.title}, ${formatTimeRange(task.start_at, task.end_at, zone)}, ${STATE_LABEL[state]}, ${task.progress_percent}% complete`
   useEffect(() => {
     body.current?.closest('.fc-event')?.setAttribute('aria-label', label)
   }, [label])
 
-  const progressBar = (
+  const progressBar = isEvent ? null : (
     <div className="absolute inset-x-0 bottom-0 h-[3px] bg-black/5" aria-hidden>
       <div
         className="h-full origin-left transition-transform duration-300 ease-out"
@@ -48,8 +54,12 @@ export function EventContent({ task, meId, zone, people, now, bar, handles }: Pr
 
   if (bar) {
     return (
-      <div ref={body} className={`pw-event-body pw-st-${state} relative flex min-h-[26px] items-center gap-1.5 overflow-hidden px-2 pb-[3px]`}>
-        {state === 'awaiting' || state === 'needs_revision' ? <Hourglass size={11} className="shrink-0 text-st-awaiting" aria-hidden /> : null}
+      <div ref={body} className={`pw-event-body pw-st-${look} relative flex min-h-[26px] items-center gap-1.5 overflow-hidden px-2 pb-[3px]`}>
+        {state === 'awaiting' || state === 'needs_revision' ? (
+          <Hourglass size={11} className="shrink-0 text-st-awaiting" aria-hidden />
+        ) : isEvent ? (
+          <CalendarDays size={11} className="shrink-0 text-st-event" aria-hidden />
+        ) : null}
         <span className="pw-event-title min-w-0 truncate text-[12px] leading-tight font-semibold">{task.title}</span>
         <span className="hidden shrink-0 text-[10.5px] text-ash sm:inline">
           {start.toFormat('ccc h:mm a')} – {end.toFormat('ccc h:mm a')}
@@ -72,17 +82,25 @@ export function EventContent({ task, meId, zone, people, now, bar, handles }: Pr
             )
           })}
         </span>
-        <span className="shrink-0 text-[10px] font-semibold text-ash tabular-nums">{task.progress_percent}%</span>
+        {points ? (
+          <span className="inline-flex shrink-0 items-center gap-0.5 text-[10px] font-semibold text-ash">
+            <List size={10} />
+            {points}
+          </span>
+        ) : null}
+        {!isEvent ? <span className="shrink-0 text-[10px] font-semibold text-ash tabular-nums">{task.progress_percent}%</span> : null}
         {progressBar}
       </div>
     )
   }
 
   return (
-    <div ref={body} className={`pw-event-body pw-st-${state} @container relative flex flex-col overflow-hidden px-1.5 pt-1 pb-2`}>
+    <div ref={body} className={`pw-event-body pw-st-${look} @container relative flex flex-col overflow-hidden px-1.5 pt-1 pb-2`}>
       <div className="flex min-w-0 items-start gap-1">
         {state === 'awaiting' || state === 'needs_revision' ? (
           <Hourglass size={11} className="mt-[2px] shrink-0 text-st-awaiting" aria-hidden />
+        ) : isEvent ? (
+          <CalendarDays size={11} className="mt-[2px] shrink-0 text-st-event" aria-hidden />
         ) : null}
         <span className="pw-event-title min-w-0 flex-1 truncate text-[12px] leading-tight font-semibold">
           {task.title}
@@ -94,7 +112,7 @@ export function EventContent({ task, meId, zone, people, now, bar, handles }: Pr
       {!compact ? (
         <div className="truncate text-[10.5px] leading-snug text-ash">
           {time}
-          {state !== 'scheduled' ? <span className="font-medium"> · {STATE_LABEL[state]}</span> : null}
+          {state !== 'scheduled' && look !== 'event' ? <span className="font-medium"> · {STATE_LABEL[state]}</span> : null}
         </div>
       ) : null}
       {!compact && minutes >= 75
@@ -127,13 +145,21 @@ export function EventContent({ task, meId, zone, people, now, bar, handles }: Pr
             ) : null}
           </div>
           <span className="flex-1" />
+          {points ? (
+            <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold text-ash" title={`${points} point${points === 1 ? '' : 's'}`}>
+              <List size={10} />
+              {points}
+            </span>
+          ) : null}
           {task.bookmark_count > 0 ? (
             <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold text-ash" title={`${task.bookmark_count} progress notes`}>
               <Bookmark size={10} className="fill-current" />
               {task.bookmark_count}
             </span>
           ) : null}
-          <span className="hidden text-[10px] font-semibold text-ash tabular-nums @[4.5rem]:inline">{task.progress_percent}%</span>
+          {!isEvent ? (
+            <span className="hidden text-[10px] font-semibold text-ash tabular-nums @[4.5rem]:inline">{task.progress_percent}%</span>
+          ) : null}
         </div>
       ) : null}
       {progressBar}

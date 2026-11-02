@@ -9,6 +9,7 @@ import type { Profile, Task } from '../lib/types'
 import { canReschedule } from '../lib/permissions'
 import { barToTimes, dayRowSelection, isMultiDay, shiftDate, shiftSlot, spanDates, stretchToDate, taskSessions, toZoned } from '../lib/time'
 import { EventContent } from './EventContent'
+import { EventPeek, type PeekHandle } from './EventPeek'
 import { createEventMotion } from '../lib/calendarMotion'
 import { motionLevel } from '../lib/motion'
 import { startStretchPreview } from '../lib/stretchPreview'
@@ -161,6 +162,7 @@ export const CalendarView = forwardRef<CalendarHandle, Props>(function CalendarV
   const { tasks, me, people, zone, initialView, isMobile, now } = props
   const fc = useRef<FullCalendar>(null)
   const box = useRef<HTMLDivElement>(null)
+  const peek = useRef<PeekHandle>(null)
 
   // The grid only re-measures on window resize; also follow the container (sidebar
   // toggle, drawer). Re-measure once the size settles rather than on every frame of
@@ -344,8 +346,16 @@ export const CalendarView = forwardRef<CalendarHandle, Props>(function CalendarV
         latest.current.onSelectRange(range.start, range.end)
         arg.view.calendar.unselect()
       }}
+      eventMouseEnter={(arg) => {
+        const task = arg.event.extendedProps.task as Task | undefined
+        if (task?.points?.length && !arg.el.classList.contains('fc-event-dragging')) peek.current?.show(task, arg.el)
+      }}
+      eventMouseLeave={() => peek.current?.hide()}
+      eventDragStart={() => peek.current?.hide(true)}
+      eventResizeStart={() => peek.current?.hide(true)}
       eventClick={(arg: EventClickArg) => {
         arg.jsEvent.preventDefault()
+        peek.current?.hide(true)
         latest.current.onOpenTask((arg.event.extendedProps.task as Task).id)
       }}
       eventDrop={onMove}
@@ -403,6 +413,7 @@ export const CalendarView = forwardRef<CalendarHandle, Props>(function CalendarV
         )
       }}
     />
+    <EventPeek ref={peek} zone={zone} />
     </div>
   )
 })

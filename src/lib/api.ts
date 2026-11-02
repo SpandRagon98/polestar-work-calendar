@@ -1,5 +1,5 @@
 import { supabase } from './supabase'
-import type { Activity, AssignmentStatus, Profile, Task, TaskInput, TaskPatch, TicketInput } from './types'
+import type { Activity, AssignmentStatus, Profile, Task, TaskInput, TaskKind, TaskPatch, TicketInput } from './types'
 import {
   ApiError,
   REQUEST_UPDATE_TYPES,
@@ -75,6 +75,11 @@ export async function rescheduleFollowing(id: string, version: number, start: st
   return check(
     await supabase.rpc('reschedule_following', { p_id: id, p_version: version, p_start: start, p_end: end, p_zone: zone }),
   ) as number
+}
+
+/** Switch between task and event, and/or replace the bullet points. Returns the new version. */
+export async function updateTaskNotes(id: string, version: number, p: { kind?: TaskKind; points?: string[] }): Promise<number> {
+  return check(await supabase.rpc('update_task_notes', { p_id: id, p_version: version, p })) as number
 }
 
 /** Answer all of my pending occurrences in a series. Returns how many were answered. */

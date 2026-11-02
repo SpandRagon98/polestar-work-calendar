@@ -3,6 +3,8 @@ import {
   AlertCircle,
   Ban,
   CalendarClock,
+  CalendarDays,
+  CheckSquare,
   CheckCircle2,
   ChevronDown,
   Clock,
@@ -19,7 +21,7 @@ import {
   X,
 } from 'lucide-react'
 import { supabase } from '../lib/supabase'
-import type { Activity, Priority, Task, TaskPatch, WorkStatus } from '../lib/types'
+import type { Activity, Priority, Task, TaskKind, TaskPatch, WorkStatus } from '../lib/types'
 import {
   addBookmark,
   deleteTask,
@@ -34,6 +36,7 @@ import {
   setTaskOwners,
   toApiError,
   updateTask,
+  updateTaskNotes,
   type AssignmentResponse,
 } from '../lib/api'
 import { canAddNote, canDelete, canEdit, canReschedule } from '../lib/permissions'
@@ -53,7 +56,9 @@ import { useApp, useNow } from '../context'
 import { ApprovalControls, StatusPill } from './ApprovalControls'
 import { BookmarkList } from './BookmarkList'
 import { CustomFieldEditor } from './CustomFieldEditor'
+import { KindLabel } from './CreateTaskDialog'
 import { OwnerSelector } from './OwnerSelector'
+import { PointsEditor } from './PointsEditor'
 import { ProgressControl } from './ProgressControl'
 import { useFeedback } from './ui/feedback'
 import { Avatar, Button, Collapse, Popover, Segmented, cx, useAnimatedClose } from './ui/primitives'
@@ -161,6 +166,29 @@ export function TaskDrawer({ task, onClose: closeNow, refreshTask, onManyChanged
   )
 
   const patch = (p: TaskPatch, success?: string) => mutate((v) => updateTask(task.id, v, p), success)
+
+  // Type and points save one after another, each with the version the last one returned.
+  const isEvent = task.kind === 'event'
+  const latestVersion = useRef(task.version)
+  useEffect(() => {
+    latestVersion.current = task.version
+  }, [task.version])
+  const notesQueue = useRef<Promise<unknown>>(Promise.resolve())
+  const saveNotes = (p: { kind?: TaskKind; points?: string[] }, success?: string) => {
+    notesQueue.current = notesQueue.current.then(async () => {
+      try {
+        latestVersion.current = await updateTaskNotes(task.id, latestVersion.current, p).catch((e) => {
+          throw explainMissing(e, 'update_task_notes', '20261104000000_events_and_points.sql')
+        })
+        await refreshTask(task.id)
+        if (success) toast(success)
+      } catch (e) {
+        const err = toApiError(e)
+        toast(err.isConflict ? 'Someone else just updated this — showing the latest version.' : err.message, 'error')
+        await refreshTask(task.id)
+      }
+    })
+  }
 
   const respond = async (response: AssignmentResponse, opts?: { note?: string; start_at?: string; end_at?: string }) => {
     const labels = { accept: 'Accepted — it’s on your calendar.', decline: 'Request declined.', suggest: 'Suggestion sent to the requester.' }
@@ -290,7 +318,13 @@ export function TaskDrawer({ task, onClose: closeNow, refreshTask, onManyChanged
       {/* Header */}
       <div className="sticky top-0 z-10 border-b border-line bg-ivory px-5 pt-4 pb-3">
         <div className="flex items-center gap-2">
-          <span className={cx('chip', STATE_CHIP[state])}>{STATE_LABEL[state]}</span>
+          {isEvent && ['scheduled', 'in_progress', 'pending', 'completed'].includes(state) ? (
+            <span className="chip bg-st-event/12 text-st-event">
+              <CalendarDays size={10} /> Event
+            </span>
+          ) : (
+            <span className={cx('chip', STATE_CHIP[state])}>{STATE_LABEL[state]}</span>
+          )}
           {task.priority !== 'medium' ? (
             <span className={cx('chip', task.priority === 'high' ? 'bg-ember/10 text-ember' : 'bg-canvas text-ash')}>
               <Flag size={10} /> {PRIORITY_LABEL[task.priority]}
@@ -316,12 +350,12 @@ export function TaskDrawer({ task, onClose: closeNow, refreshTask, onManyChanged
                 ) : null}
                 {editable && task.work_status !== 'cancelled' ? (
                   <MenuItem icon={<Ban size={15} />} onClick={() => (setMenuOpen(false), void setStatus('cancelled'))}>
-                    Cancel task
+                    {isEvent ? 'Cancel event' : 'Cancel task'}
                   </MenuItem>
                 ) : null}
                 {editable && task.work_status === 'cancelled' ? (
                   <MenuItem icon={<RotateCcw size={15} />} onClick={() => (setMenuOpen(false), void patch({ work_status: 'scheduled' }))}>
-                    Restore task
+                    {isEvent ? 'Restore event' : 'Restore task'}
                   </MenuItem>
                 ) : null}
                 {canDelete(task, me) ? (
@@ -428,6 +462,22 @@ export function TaskDrawer({ task, onClose: closeNow, refreshTask, onManyChanged
           }}
         />
 
+        {editable && !task.unscheduled ? (
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <Segmented
+              size="sm"
+              label="Type"
+              value={task.kind ?? 'task'}
+              onChange={(k) => saveNotes({ kind: k }, k === 'event' ? 'Now an event: no progress to track.' : 'Now a task.')}
+              options={[
+                { value: 'task', label: <KindLabel icon={<CheckSquare size={13} />} text="Task" /> },
+                { value: 'event', label: <KindLabel icon={<CalendarDays size={13} />} text="Event" /> },
+              ]}
+            />
+            <span className="text-[11px] text-stone">{isEvent ? 'No progress or overdue warnings' : 'Tracks progress and status'}</span>
+          </div>
+        ) : null}
+
         {/* When */}
         {editingTime ? (
           <TimeEditor
@@ -483,6 +533,15 @@ export function TaskDrawer({ task, onClose: closeNow, refreshTask, onManyChanged
             }}
           />
         ) : null}
+
+        {/* Points */}
+        <section>
+          <div className="mb-1.5 flex items-baseline justify-between gap-2">
+            <h3 className="section-title">{isEvent ? 'Agenda / points' : 'Points'}</h3>
+            <span className="text-[11px] text-stone">Shown when you hover over it</span>
+          </div>
+          <PointsEditor value={task.points ?? []} disabled={!editable} onChange={(points) => saveNotes({ points })} />
+        </section>
 
         {/* Owners */}
         <section>
@@ -544,7 +603,8 @@ export function TaskDrawer({ task, onClose: closeNow, refreshTask, onManyChanged
           )}
         </section>
 
-        {/* Progress & status */}
+        {/* Progress & status (events have none) */}
+        {!isEvent ? (
         <section>
           <div className="mb-2 flex items-center justify-between">
             <h3 className="section-title">Progress</h3>
@@ -556,8 +616,9 @@ export function TaskDrawer({ task, onClose: closeNow, refreshTask, onManyChanged
             onCommit={(v) => void patch({ progress_percent: v })}
           />
         </section>
+        ) : null}
 
-        {canWork && task.work_status !== 'cancelled' ? (
+        {isEvent ? null : canWork && task.work_status !== 'cancelled' ? (
           <section>
             <h3 className="section-title mb-2">Status</h3>
             <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-4">

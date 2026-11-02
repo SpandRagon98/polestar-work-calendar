@@ -429,6 +429,39 @@ describe('repeating an existing event', () => {
   })
 })
 
+describe('events and points', () => {
+  it('creates an event with its points, trimmed and in order', async () => {
+    const id = await newTask(spandan, [spandan], { kind: 'event', points: ['  Agenda first ', '', 'Then demo'] })
+    expect(await task(id)).toMatchObject({ kind: 'event', points: ['Agenda first', 'Then demo'] })
+    expect((await task(await newTask(spandan, [spandan]))).kind).toBe('task')
+  })
+
+  it('switches type and edits points with versions, and logs both', async () => {
+    const id = await newTask(spandan, [spandan])
+    expect(await rpc(spandan, 'update_task_notes', [id, 1, { kind: 'event' }])).toBe(2)
+    expect(await rpc(spandan, 'update_task_notes', [id, 2, { points: ['Discussed Q4', 'Owner: Mandya'] }])).toBe(3)
+    expect(await rpc(spandan, 'update_task_notes', [id, 3, { points: ['Discussed Q4', 'Owner: Mandya'] }])).toBe(3) // no change
+    await fails(rpc(spandan, 'update_task_notes', [id, 1, { points: [] }]), 'PT409')
+    expect(await task(id)).toMatchObject({ kind: 'event', points: ['Discussed Q4', 'Owner: Mandya'], version: 3 })
+    expect(await activityTypes(id)).toEqual(expect.arrayContaining(['kind_changed', 'points_updated']))
+  })
+
+  it('rejects bad input and people who cannot edit it', async () => {
+    const id = await newTask(spandan, [spandan])
+    await fails(rpc(spandan, 'update_task_notes', [id, 1, { kind: 'meeting' }]), undefined, /task or event/)
+    await fails(rpc(spandan, 'update_task_notes', [id, 1, { points: ['x'.repeat(301)] }]), undefined, /300 characters/)
+    await fails(rpc(spandan, 'update_task_notes', [id, 1, { points: Array.from({ length: 51 }, (_, i) => `p${i}`) }]))
+    await fails(rpc(mandya, 'update_task_notes', [id, 1, { points: ['mine now'] }]), '42501')
+    await fails(t.asAnon(`select public.update_task_notes(gen_random_uuid(), 1, '{}'::jsonb)`), '42501')
+  })
+
+  it('keeps an event an event when it repeats', async () => {
+    const id = await newTask(spandan, [spandan], { kind: 'event', points: ['Only on the first date'] })
+    const [copy] = await rpc<string[]>(spandan, 'repeat_task', [id, 1, JSON.stringify([{ start_at: at(14, 0, 3), end_at: at(16, 0, 3) }])])
+    expect(await task(copy)).toMatchObject({ kind: 'event', points: [] })
+  })
+})
+
 describe('tickets without a time', () => {
   const ticket = (user: string, owners: string[]) =>
     rpc<string>(user, 'create_ticket', [{ title: 'Churn deck', priority: 'high', owner_ids: owners }])
@@ -443,7 +476,8 @@ describe('tickets without a time', () => {
   it('lets an assignee set the time, which accepts it; the others then accept that time', async () => {
     const id = await ticket(rupam, [spandan, mandya])
     await fails(rpc(spandan, 'respond_assignment', [id, 'accept', null, null, null]), undefined, /Choose a date and time/)
-    await fails(rpc(rupam, 'update_task', [id, 1, { start_at: at(9), end_at: at(10) }]), '42501')
+    // A day the placeholder time can never be on.
+    await fails(rpc(rupam, 'update_task', [id, 1, { start_at: at(9, 0, 20), end_at: at(10, 0, 20) }]), '42501')
     await fails(rpc(priya, 'schedule_ticket', [id, at(9), at(10), null]), '42501')
     await rpc(spandan, 'schedule_ticket', [id, at(9), at(10), 'Tomorrow morning'])
     const row = await task(id)

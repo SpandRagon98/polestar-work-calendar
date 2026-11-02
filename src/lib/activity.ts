@@ -21,6 +21,8 @@ export const ACTIVITY_LABEL: Record<string, string> = {
   request_needs_revision: 'Request needs revision',
   series_created: 'Set to repeat',
   ticket_scheduled: 'Scheduled the ticket',
+  kind_changed: 'Changed type',
+  points_updated: 'Updated points',
   bookmark: 'Progress note',
 }
 
@@ -67,6 +69,15 @@ export function describeActivity(a: Activity, profiles: NameMap, zone: string): 
     case 'created':
     case 'request_created':
       return m.owners ? `Owners: ${names(m.owners, profiles)}` : ''
+    case 'kind_changed':
+      return m.to === 'event' ? 'Task → Event' : 'Event → Task'
+    case 'points_updated': {
+      const list = (v: unknown) => (Array.isArray(v) ? (v as unknown[]).map(String) : [])
+      const parts: string[] = []
+      if (list(m.added).length) parts.push(`Added: ${list(m.added).join('; ')}`)
+      if (list(m.removed).length) parts.push(`Removed: ${list(m.removed).join('; ')}`)
+      return parts.join(' · ')
+    }
     case 'details_changed':
       return Array.isArray(m.fields) ? `Changed ${(m.fields as string[]).join(', ')}` : ''
     case 'custom_fields': {

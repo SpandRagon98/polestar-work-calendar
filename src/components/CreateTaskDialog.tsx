@@ -1,12 +1,13 @@
 import { useState, type FormEvent } from 'react'
-import { ChevronDown, SlidersHorizontal } from 'lucide-react'
+import { CalendarDays, CheckSquare, ChevronDown, SlidersHorizontal } from 'lucide-react'
 import { useApp } from '../context'
 import { useTaskForm, type CreateDraft } from '../hooks/useTaskForm'
 import { CustomFieldEditor } from './CustomFieldEditor'
 import { OwnerSelector } from './OwnerSelector'
+import { PointsEditor } from './PointsEditor'
 import { FormError, OwnerNotes, PriorityField, RepeatFields, TimeFields } from './TaskFormParts'
 import { useFeedback } from './ui/feedback'
-import { Button, Collapse, Dialog, cx } from './ui/primitives'
+import { Button, Collapse, Dialog, Segmented, cx } from './ui/primitives'
 
 export type { CreateDraft } from '../hooks/useTaskForm'
 
@@ -41,7 +42,8 @@ function CreateTaskForm({ draft, categories, onClose, onCreated }: { draft: Crea
     const id = await form.submit()
     if (!id) return
     const n = form.repeat ? `${form.repeatDates.length} events` : null
-    toast(form.isRequest ? `${n ?? 'Ticket'} sent — added to calendars once accepted.` : n ? `${n} created.` : 'Task created.')
+    const what = form.kind === 'event' ? 'Event' : 'Task'
+    toast(form.isRequest ? `${n ?? 'Ticket'} sent — added to calendars once accepted.` : n ? `${n} created.` : `${what} created.`)
     onCreated(id)
   }
 
@@ -49,21 +51,36 @@ function CreateTaskForm({ draft, categories, onClose, onCreated }: { draft: Crea
     <Dialog
       open
       onClose={onClose}
-      title={draft.parentTask ? 'Create follow-up' : form.isRequest ? 'New ticket' : 'New task'}
+      title={draft.parentTask ? 'Create follow-up' : form.isRequest ? 'New ticket' : form.kind === 'event' ? 'New event' : 'New task'}
       description={draft.parentTask ? `Continues “${draft.parentTask.title}”. The original stays on the calendar.` : undefined}
       footer={(close) => (
         <>
           <Button onClick={close}>Cancel</Button>
           <Button variant="primary" type="submit" form="create-task" loading={form.busy}>
-            {form.isRequest ? 'Send ticket' : 'Create task'}
+            {form.isRequest ? 'Send ticket' : form.kind === 'event' ? 'Create event' : 'Create task'}
           </Button>
         </>
       )}
     >
       <form id="create-task" onSubmit={submit} className="space-y-5">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <Segmented
+            size="sm"
+            label="Type"
+            value={form.kind}
+            onChange={form.setKind}
+            options={[
+              { value: 'task', label: <KindLabel icon={<CheckSquare size={13} />} text="Task" /> },
+              { value: 'event', label: <KindLabel icon={<CalendarDays size={13} />} text="Event" /> },
+            ]}
+          />
+          <span className="text-[11px] text-stone">
+            {form.kind === 'event' ? 'A meeting or call: no progress to track' : 'Work with progress and a status'}
+          </span>
+        </div>
         <div>
           <label htmlFor="task-title" className="label">
-            Task title
+            Title
           </label>
           <input
             id="task-title"
@@ -71,10 +88,15 @@ function CreateTaskForm({ draft, categories, onClose, onCreated }: { draft: Crea
             required
             maxLength={200}
             className="field h-11 text-base"
-            placeholder="e.g. Brightspeed data validation"
+            placeholder={form.kind === 'event' ? 'e.g. Weekly sync with sales' : 'e.g. Brightspeed data validation'}
             value={form.title}
             onChange={(e) => form.setTitle(e.target.value)}
           />
+        </div>
+
+        <div>
+          <span className="label">{form.kind === 'event' ? 'Agenda / points' : 'Points'}</span>
+          <PointsEditor value={form.points} onChange={form.setPoints} placeholder="Add a point and press Enter" />
         </div>
 
         <div className="space-y-3">
@@ -145,5 +167,14 @@ function CreateTaskForm({ draft, categories, onClose, onCreated }: { draft: Crea
         <FormError message={form.error} />
       </form>
     </Dialog>
+  )
+}
+
+export function KindLabel({ icon, text }: { icon: React.ReactNode; text: string }) {
+  return (
+    <span className="inline-flex items-center gap-1.5">
+      {icon}
+      {text}
+    </span>
   )
 }

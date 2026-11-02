@@ -1,6 +1,6 @@
 // Sandbox stand-in for src/lib/api.ts (vite --mode sandbox only). Every call runs
 // the real SQL functions as the signed-in user, with RLS, inside PGlite.
-import type { Activity, Profile, Task, TaskInput, TaskPatch, TicketInput } from '../lib/types'
+import type { Activity, Profile, Task, TaskInput, TaskKind, TaskPatch, TicketInput } from '../lib/types'
 import {
   ApiError,
   REQUEST_UPDATE_TYPES,
@@ -77,6 +77,13 @@ export async function createTask(input: TaskInput): Promise<string> {
   if (input.parent_task_id) await changed(input.parent_task_id, since)
   for (const uid of input.owner_ids) emit('task_assignments', 'INSERT', { user_id: uid, task_id: id })
   return id
+}
+
+export async function updateTaskNotes(id: string, version: number, p: { kind?: TaskKind; points?: string[] }): Promise<number> {
+  const since = await stamp()
+  const [{ v }] = await q<{ v: number }>(`select public.update_task_notes($1, $2, $3) as v`, [id, version, p])
+  await changed(id, since)
+  return v
 }
 
 export async function createTicket(input: TicketInput): Promise<string> {

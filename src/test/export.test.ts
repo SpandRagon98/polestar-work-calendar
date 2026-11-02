@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import ExcelJS from 'exceljs'
 import { MANDYA, SPANDAN, RUPAM, makeTask, people } from './fixtures'
-import { buildWorkbook, exportFileName, GANTT_STATUS, safeText, wallClock } from '../lib/export'
+import { buildWorkbook, exportFileName, GANTT_EVENT, GANTT_STATUS, safeText, wallClock } from '../lib/export'
 import type { Activity } from '../lib/types'
 
 const profiles = [people.spandan, people.mandya, people.rupam]
@@ -102,6 +102,20 @@ describe('Excel export', () => {
     // Tickets without a time aren't on the calendar, so they aren't exported.
     expect(gantt.getRow(9).getCell(2).value).not.toBe('Ticket without a time')
     expect(wb.worksheets.map((w) => w.name)).toEqual(['Gantt', 'Tasks', 'Utilization', 'Bookmarks and History'])
+  })
+
+  it('gives events their own colour and lists points', async () => {
+    const meeting = makeTask({ title: 'Weekly sync', kind: 'event', points: ['Pipeline review', 'Hiring plan'] })
+    const wb = await roundTrip(
+      await buildWorkbook({ tasks: [meeting], activities: [], profiles, fromDate: '2026-11-02', toDate: '2026-11-06', zone: 'Asia/Kolkata' }),
+    )
+    const row = wb.getWorksheet('Gantt')!.getRow(7)
+    expect(row.getCell(4).value).toBe('Event')
+    expect(row.getCell(9).fill).toMatchObject({ fgColor: { argb: GANTT_EVENT.bar } })
+    const tasks = wb.getWorksheet('Tasks')!
+    const header = (tasks.getRow(1).values as unknown[]).slice(1)
+    expect(tasks.getRow(2).getCell(header.indexOf('Type') + 1).value).toBe('Event')
+    expect(tasks.getRow(2).getCell(header.indexOf('Points') + 1).value).toBe('• Pipeline review\n• Hiring plan')
   })
 
   it('uses hour columns for a one-day export', async () => {

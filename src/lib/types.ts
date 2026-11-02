@@ -3,6 +3,8 @@ export type WorkStatus = 'scheduled' | 'in_progress' | 'pending' | 'completed' |
 export type ApprovalState = 'confirmed' | 'awaiting_approval' | 'needs_revision'
 export type AssignmentStatus = 'pending' | 'accepted' | 'declined' | 'suggested'
 export type Priority = 'low' | 'medium' | 'high'
+/** An event (meeting, call) has no progress or completion to track. */
+export type TaskKind = 'task' | 'event'
 export type FieldType = 'text' | 'long_text' | 'number' | 'date' | 'dropdown' | 'checkbox' | 'url' | 'person'
 
 export interface Profile {
@@ -53,6 +55,9 @@ export interface Task {
   series_id?: string | null
   /** A ticket nobody has given a time yet; start_at/end_at are placeholders. */
   unscheduled?: boolean
+  kind?: TaskKind
+  /** Short bullet points: an agenda, or what was done. */
+  points?: string[]
   version: number
   completed_at: string | null
   created_at: string
@@ -82,10 +87,12 @@ export interface TaskInput {
   custom_fields?: CustomField[]
   owner_ids: string[]
   parent_task_id?: string
+  kind?: TaskKind
+  points?: string[]
 }
 
 /** A ticket: the work and its priority. The assignees choose the time. */
-export type TicketInput = Omit<TaskInput, 'start_at' | 'end_at' | 'parent_task_id'>
+export type TicketInput = Omit<TaskInput, 'start_at' | 'end_at' | 'parent_task_id' | 'kind' | 'points'>
 
 export type TaskPatch = Partial<
   Pick<

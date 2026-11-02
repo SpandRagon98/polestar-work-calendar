@@ -115,6 +115,11 @@ describe('progress, status and completion logic', () => {
     expect(needsUpdate(makeTask({ approval_state: 'awaiting_approval' }), new Date('2026-12-01T00:00:00Z'))).toBe(false)
   })
 
+  it('never flags an event: there is nothing to complete', () => {
+    expect(needsUpdate(makeTask({ kind: 'event' }), new Date('2026-12-01T00:00:00Z'))).toBe(false)
+    expect(needsUpdate(makeTask({ kind: 'task' }), new Date('2026-12-01T00:00:00Z'))).toBe(true)
+  })
+
   it('shows tentative requests as awaiting approval for the people asked', () => {
     expect(displayState(makeTask({ approval_state: 'awaiting_approval' }), SPANDAN)).toBe('awaiting')
     expect(displayState(makeTask({ approval_state: 'needs_revision' }), RUPAM)).toBe('needs_revision')

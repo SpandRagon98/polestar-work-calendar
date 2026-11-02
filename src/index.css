@@ -30,6 +30,7 @@
   --color-st-completed: #2f8f5b;
   --color-st-pending: #cf3a2a;
   --color-st-awaiting: #7b5cc4;
+  --color-st-event: #2f6fd0;
 
   --shadow-card: 0 1px 2px color-mix(in srgb, var(--color-rail) 4%, transparent), 0 4px 16px color-mix(in srgb, var(--color-rail) 5%, transparent);
   --shadow-pop: 0 8px 28px color-mix(in srgb, var(--color-rail) 13%, transparent), 0 2px 6px color-mix(in srgb, var(--color-rail) 6%, transparent);
@@ -286,6 +287,7 @@
 .pw-st-completed { --st: var(--color-st-completed); }
 .pw-st-pending { --st: var(--color-st-pending); }
 .pw-st-cancelled { --st: #b9b3b0; }
+.pw-st-event { --st: var(--color-st-event); }
 .pw-st-awaiting,
 .pw-st-needs_revision {
   --st: var(--color-st-awaiting);
@@ -359,6 +361,7 @@
 .anim-slide, .anim-rise, .anim-slide-out, .anim-rise-out { will-change: transform, opacity; }
 /* Sections of a panel and rows of a list arrive one after another. */
 .anim-stagger > * { animation: pw-item 0.36s var(--ease-out) backwards; }
+.anim-item { animation: pw-item 0.26s var(--ease-out) backwards; }
 .anim-stagger > :nth-child(2) { animation-delay: 0.03s; }
 .anim-stagger > :nth-child(3) { animation-delay: 0.06s; }
 .anim-stagger > :nth-child(4) { animation-delay: 0.09s; }

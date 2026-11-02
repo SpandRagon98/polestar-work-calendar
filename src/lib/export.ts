@@ -70,6 +70,10 @@ export const GANTT_STATUS: Record<WorkStatus, { label: string; bar: string; tint
   cancelled: { label: 'Cancelled', bar: 'FFE2DFDB', tint: 'FFF4F2F0', text: 'FF8E8984' },
 }
 
+/** Events have no progress, so they get one colour of their own (unless cancelled). */
+export const GANTT_EVENT = { label: 'Event', bar: 'FF5B8DEF', tint: 'FFE3ECFC', text: 'FF1F4FA8' }
+const ganttStyle = (t: Task) => (t.kind === 'event' && t.work_status !== 'cancelled' ? GANTT_EVENT : GANTT_STATUS[t.work_status])
+
 const solid = (argb: string) => ({ type: 'pattern' as const, pattern: 'solid' as const, fgColor: { argb } })
 const thin = (argb: string) => ({ style: 'thin' as const, color: { argb } })
 
@@ -155,9 +159,9 @@ function addGantt(wb: Workbook, tasks: Task[], input: ExportInput, nameOf: (id: 
   ws.mergeCells(3, 1, 3, Math.max(lastCol, 8))
   ws.getCell(3, 1).value = {
     richText: [
-      ...(Object.keys(GANTT_STATUS) as WorkStatus[]).flatMap((s) => [
-        { text: '■ ', font: { size: 13, color: { argb: GANTT_STATUS[s].bar } } },
-        { text: `${GANTT_STATUS[s].label}     `, font: { size: 10, color: { argb: 'FF3B3532' } } },
+      ...[...Object.values(GANTT_STATUS), GANTT_EVENT].flatMap((s) => [
+        { text: '■ ', font: { size: 13, color: { argb: s.bar } } },
+        { text: `${s.label}     `, font: { size: 10, color: { argb: 'FF3B3532' } } },
       ]),
       { text: '▨ ', font: { size: 12, color: { argb: 'FF9A938D' } } },
       { text: 'Hatched: not yet accepted by everyone', font: { size: 10, color: { argb: 'FF3B3532' } } },
@@ -202,7 +206,7 @@ function addGantt(wb: Workbook, tasks: Task[], input: ExportInput, nameOf: (id: 
     const r = HEAD + 2 + n
     const row = ws.getRow(r)
     row.height = 20
-    const st = GANTT_STATUS[t.work_status]
+    const st = ganttStyle(t)
     const tentative = t.approval_state !== 'confirmed'
     const owners = t.assignments
       .filter((a) => a.approval_status !== 'declined')
@@ -229,7 +233,8 @@ function addGantt(wb: Workbook, tasks: Task[], input: ExportInput, nameOf: (id: 
     })
     const name = row.getCell(2)
     name.font = { size: 10, bold: t.priority === 'high', strike: t.work_status === 'cancelled', color: { argb: t.work_status === 'cancelled' ? 'FF8E8984' : 'FF2B2522' } }
-    if (t.priority === 'high') name.note = 'High priority'
+    const notes = [t.priority === 'high' ? 'High priority' : '', ...(t.points ?? []).map((p) => `• ${p}`)].filter(Boolean)
+    if (notes.length) name.note = notes.join('\n')
     const status = row.getCell(4)
     status.fill = solid(st.tint)
     status.font = { size: 9, bold: true, color: { argb: st.text } }
@@ -249,7 +254,7 @@ function addGantt(wb: Workbook, tasks: Task[], input: ExportInput, nameOf: (id: 
         c.fill = tentative
           ? { type: 'pattern', pattern: 'darkUp', fgColor: { argb: st.bar }, bgColor: { argb: st.tint } }
           : solid(st.bar)
-        if (!labelled && t.progress_percent > 0 && t.work_status !== 'completed') {
+        if (!labelled && t.kind !== 'event' && t.progress_percent > 0 && t.work_status !== 'completed') {
           c.value = `${t.progress_percent}%`
           c.font = { size: 8, bold: true, color: { argb: 'FF2B2522' } }
           c.alignment = { vertical: 'middle' }
@@ -264,14 +269,16 @@ function addGantt(wb: Workbook, tasks: Task[], input: ExportInput, nameOf: (id: 
   // Totals
   const sumRow = HEAD + 3 + tasks.length
   ws.mergeCells(sumRow, 1, sumRow, Math.max(lastCol, 8))
-  const counts = (Object.keys(GANTT_STATUS) as WorkStatus[]).filter((s) => tasks.some((t) => t.work_status === s))
+  const groups = [...Object.values(GANTT_STATUS), GANTT_EVENT]
+    .map((s) => ({ s, n: tasks.filter((t) => ganttStyle(t) === s).length }))
+    .filter((g) => g.n > 0)
   const planned = tasks.filter((t) => t.work_status !== 'cancelled').reduce((sum, t) => sum + scheduledMinutes(t.start_at, t.end_at, zone), 0) / 60
   ws.getCell(sumRow, 1).value = {
     richText: [
       { text: 'Summary   ', font: { bold: true, size: 10, color: { argb: BRAND } } },
-      ...counts.flatMap((s) => [
-        { text: '■ ', font: { size: 12, color: { argb: GANTT_STATUS[s].bar } } },
-        { text: `${tasks.filter((t) => t.work_status === s).length} ${GANTT_STATUS[s].label.toLowerCase()}    `, font: { size: 10 } },
+      ...groups.flatMap(({ s, n }) => [
+        { text: '■ ', font: { size: 12, color: { argb: s.bar } } },
+        { text: `${n} ${s.label.toLowerCase()}${s === GANTT_EVENT && n !== 1 ? 's' : ''}    `, font: { size: 10 } },
       ]),
       { text: `${Math.round(planned * 10) / 10} planned hours`, font: { size: 10, bold: true } },
     ],
@@ -316,6 +323,7 @@ export async function buildWorkbook(input: ExportInput): Promise<Workbook> {
   ws1.columns = [
     { header: 'Task ID', key: 'id', width: 38 },
     { header: 'Task Title', key: 'title', width: 36 },
+    { header: 'Type', key: 'kind', width: 8 },
     { header: 'Date', key: 'date', width: 12, style: { numFmt: 'yyyy-mm-dd' } },
     { header: 'Start Time', key: 'start', width: 11, style: { numFmt: 'hh:mm' } },
     { header: 'End Time', key: 'end', width: 11, style: { numFmt: 'hh:mm' } },
@@ -330,6 +338,7 @@ export async function buildWorkbook(input: ExportInput): Promise<Workbook> {
     { header: 'Pending Reason', key: 'pending', width: 28 },
     { header: 'Created At', key: 'created', width: 17, style: { numFmt: 'yyyy-mm-dd hh:mm' } },
     { header: 'Completed At', key: 'completed', width: 17, style: { numFmt: 'yyyy-mm-dd hh:mm' } },
+    { header: 'Points', key: 'points', width: 44 },
     { header: 'Custom Fields', key: 'custom', width: 40 },
     ...fieldLabels.map((label, i) => ({ header: safeText(label), key: `cf_${i}`, width: 18 })),
   ]
@@ -339,6 +348,7 @@ export async function buildWorkbook(input: ExportInput): Promise<Workbook> {
     const row: Record<string, unknown> = {
       id: t.id,
       title: safeText(t.title),
+      kind: t.kind === 'event' ? 'Event' : 'Task',
       date: new Date(Date.UTC(start.year, start.month - 1, start.day)),
       start: wallClock(t.start_at, zone),
       end: wallClock(t.end_at, zone),
@@ -349,7 +359,7 @@ export async function buildWorkbook(input: ExportInput): Promise<Workbook> {
           .join(', '),
       ),
       requester: safeText(nameOf(t.requester_id)),
-      status: WORK_STATUS_LABEL[t.work_status],
+      status: ganttStyle(t) === GANTT_EVENT ? 'Event' : WORK_STATUS_LABEL[t.work_status],
       approval: APPROVAL_STATE_LABEL[t.approval_state],
       progress: t.progress_percent / 100,
       priority: PRIORITY_LABEL[t.priority],
@@ -357,6 +367,7 @@ export async function buildWorkbook(input: ExportInput): Promise<Workbook> {
       pending: safeText(t.pending_reason),
       created: wallClock(t.created_at, zone),
       completed: t.completed_at ? wallClock(t.completed_at, zone) : null,
+      points: (t.points ?? []).map((p) => `• ${p}`).join('\n'),
       custom: safeText(t.custom_fields.map((f) => `${f.label}: ${displayValue(f, people)}`).join('; ')),
     }
     for (const f of t.custom_fields) {
@@ -364,7 +375,8 @@ export async function buildWorkbook(input: ExportInput): Promise<Workbook> {
       row[`cf_${fieldLabels.indexOf(f.label)}`] = typeof v === 'string' ? safeText(v) : v
     }
     const added = ws1.addRow(row)
-    const st = GANTT_STATUS[t.work_status]
+    added.getCell('points').alignment = { wrapText: true, vertical: 'top' }
+    const st = ganttStyle(t)
     added.getCell('status').fill = solid(st.tint)
     added.getCell('status').font = { bold: true, color: { argb: st.text } }
     if (!start.hasSame(end, 'day')) added.getCell('end').numFmt = 'yyyy-mm-dd hh:mm'

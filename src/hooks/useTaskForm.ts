@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { DateTime } from 'luxon'
-import type { CustomField, Priority, Task } from '../lib/types'
+import type { CustomField, Priority, Task, TaskKind } from '../lib/types'
 import { createTask, createTaskSeries, fetchOverlapping, toApiError } from '../lib/api'
 import { validateFields } from '../lib/customFields'
 import { buildOccurrences, MAX_OCCURRENCES, occurrenceDates, type RepeatPattern } from '../lib/recurrence'
@@ -18,6 +18,7 @@ export interface CreateDraft {
   category?: string
   customFields?: CustomField[]
   parentTask?: Pick<Task, 'id' | 'title'>
+  kind?: TaskKind
 }
 
 /** Form state, validation, conflict warnings and submit — shared by the task dialog and the ticket page. */
@@ -35,6 +36,8 @@ export function useTaskForm(draft: CreateDraft, defaultOwners: string[]) {
   const [priority, setPriority] = useState<Priority>(draft.priority ?? 'medium')
   const [category, setCategory] = useState(draft.category ?? '')
   const [fields, setFields] = useState<CustomField[]>(draft.customFields ?? [])
+  const [kind, setKind] = useState<TaskKind>(draft.kind ?? 'task')
+  const [points, setPoints] = useState<string[]>([])
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [conflicts, setConflicts] = useState<Task[]>([])
@@ -132,6 +135,8 @@ export function useTaskForm(draft: CreateDraft, defaultOwners: string[]) {
         category: category.trim() || undefined,
         custom_fields: fields,
         owner_ids: owners,
+        kind,
+        points,
       }
       if (repeat) {
         const ids = await createTaskSeries(
@@ -160,6 +165,7 @@ export function useTaskForm(draft: CreateDraft, defaultOwners: string[]) {
 
   return {
     title, setTitle,
+    kind, setKind, points, setPoints,
     startDate, setStartDate, startTime, setStartTime,
     endDate, setEndDate, endTime, setEndTime,
     setDuration, minutes, lengthLabel, timeInvalid,
