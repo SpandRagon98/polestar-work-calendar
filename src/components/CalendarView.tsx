@@ -348,7 +348,7 @@ export const CalendarView = forwardRef<CalendarHandle, Props>(function CalendarV
       }}
       eventMouseEnter={(arg) => {
         const task = arg.event.extendedProps.task as Task | undefined
-        if (task?.points?.length && !arg.el.classList.contains('fc-event-dragging')) peek.current?.show(task, arg.el)
+        if (task && !arg.el.classList.contains('fc-event-dragging')) peek.current?.show(task, arg.el)
       }}
       eventMouseLeave={() => peek.current?.hide()}
       eventDragStart={() => peek.current?.hide(true)}
@@ -413,7 +413,7 @@ export const CalendarView = forwardRef<CalendarHandle, Props>(function CalendarV
         )
       }}
     />
-    <EventPeek ref={peek} zone={zone} />
+    <EventPeek ref={peek} zone={zone} meId={me.user_id} people={people} />
     </div>
   )
 })

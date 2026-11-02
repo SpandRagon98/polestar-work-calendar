@@ -297,6 +297,35 @@
   outline: 1.5px dashed color-mix(in srgb, var(--st) 55%, var(--color-surface));
   outline-offset: -1.5px;
 }
+/* Titles wrap onto as many lines as the event's height allows (one line when short).
+   Measured on the event itself (inside its padding), so it follows zoom and slot
+   height. Each step is one more 15px line on top of the time and owner rows (48px). */
+.pw-sized {
+  container-type: size;
+}
+.pw-wrap {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 1;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
+/* About an hour: room for two title lines if the owners row steps aside (the hover card has them). */
+@container (min-height: 44px) and (max-height: 62.9px) {
+  .pw-wrap { -webkit-line-clamp: 2; }
+  .pw-foot { display: none; }
+}
+@container (min-height: 63px) { .pw-wrap { -webkit-line-clamp: 2; } }
+@container (min-height: 78px) { .pw-wrap { -webkit-line-clamp: 3; } }
+@container (min-height: 93px) { .pw-wrap { -webkit-line-clamp: 4; } }
+@container (min-height: 108px) { .pw-wrap { -webkit-line-clamp: 5; } }
+@container (min-height: 123px) { .pw-wrap { -webkit-line-clamp: 6; } }
+/* With pinned fields showing (28px), the same steps start later. */
+@container (max-height: 150.9px) { .pw-has-pins .pw-wrap { -webkit-line-clamp: 5; } }
+@container (max-height: 135.9px) { .pw-has-pins .pw-wrap { -webkit-line-clamp: 4; } }
+@container (max-height: 120.9px) { .pw-has-pins .pw-wrap { -webkit-line-clamp: 3; } }
+@container (max-height: 105.9px) { .pw-has-pins .pw-wrap { -webkit-line-clamp: 2; } }
+@container (max-height: 90.9px) { .pw-has-pins .pw-wrap { -webkit-line-clamp: 1; } }
 .pw-st-cancelled .pw-event-title {
   text-decoration: line-through;
   color: var(--color-stone);

@@ -31,6 +31,7 @@ export function EventContent({ task, meId, zone, people, now, bar, handles }: Pr
   const slot = dailySlot(task.start_at, task.end_at, zone)
   const minutes = slot?.windowMinutes ?? (new Date(task.end_at).getTime() - new Date(task.start_at).getTime()) / 60000
   const compact = minutes <= 45
+  const showPins = !compact && minutes >= 75 && pinned.length > 0
   const start = toZoned(task.start_at, zone)
   const end = slot ? start.plus({ minutes: slot.windowMinutes }) : toZoned(task.end_at, zone)
   const time = `${start.toFormat(start.minute ? 'h:mm' : 'h')}–${end.toFormat(end.minute ? 'h:mm a' : 'h a')}`
@@ -95,14 +96,17 @@ export function EventContent({ task, meId, zone, people, now, bar, handles }: Pr
   }
 
   return (
-    <div ref={body} className={`pw-event-body pw-st-${look} @container relative flex flex-col overflow-hidden px-1.5 pt-1 pb-2`}>
+    <div
+      ref={body}
+      className={`pw-event-body pw-st-${look} pw-sized ${showPins ? 'pw-has-pins' : ''} relative flex flex-col overflow-hidden px-1.5 pt-1 pb-2`}
+    >
       <div className="flex min-w-0 items-start gap-1">
         {state === 'awaiting' || state === 'needs_revision' ? (
           <Hourglass size={11} className="mt-[2px] shrink-0 text-st-awaiting" aria-hidden />
         ) : isEvent ? (
           <CalendarDays size={11} className="mt-[2px] shrink-0 text-st-event" aria-hidden />
         ) : null}
-        <span className="pw-event-title min-w-0 flex-1 truncate text-[12px] leading-tight font-semibold">
+        <span className={`pw-event-title min-w-0 flex-1 text-[12px] leading-tight font-semibold ${compact ? 'truncate' : 'pw-wrap'}`}>
           {task.title}
         </span>
         {task.series_id ? <Repeat size={11} className="mt-[2px] shrink-0 text-stone" aria-label="Repeating event" /> : null}
@@ -115,7 +119,7 @@ export function EventContent({ task, meId, zone, people, now, bar, handles }: Pr
           {state !== 'scheduled' && look !== 'event' ? <span className="font-medium"> · {STATE_LABEL[state]}</span> : null}
         </div>
       ) : null}
-      {!compact && minutes >= 75
+      {showPins
         ? pinned.map((f) => (
             <div key={f.id} className="truncate text-[10.5px] leading-snug">
               <span className="text-stone">{f.label}:</span> <span className="font-medium">{displayValue(f, people) || '—'}</span>
@@ -123,7 +127,7 @@ export function EventContent({ task, meId, zone, people, now, bar, handles }: Pr
           ))
         : null}
       {!compact ? (
-        <div className="mt-auto flex items-center gap-1 pt-0.5">
+        <div className="pw-foot mt-auto flex items-center gap-1 pt-0.5">
           <div className="flex -space-x-1">
             {owners.slice(0, 3).map((a) => {
               const name = people.get(a.user_id)?.name ?? '?'
